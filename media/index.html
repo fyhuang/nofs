@@ -12,7 +12,8 @@
                 url: '/',
                 data: text,
                 success: function(result) {
-                    $('server_results').append('<div class="response">' + string(result) + '</div>');
+                    console.log(result);
+                    $('#server_results').append('<div>' + result + '</div>');
                 },
                 error: function() {
                     alert("Error!");
@@ -38,7 +39,7 @@
 <h1>Welcome to NoFS</h1>
 
 <form id="request_form">
-    <textarea id="request_json"></textarea>
+    <textarea id="request_json" rows="25" cols="80"></textarea><br />
     <input type="button" id="request_send_btn" value="Send request" />
 </form>
 
