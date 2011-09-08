@@ -11,51 +11,97 @@ import (
 const BUFFER_LENGTH = 1024 * 128
 
 // Unix socket handling for Node server
-func ServeUnix(addr string, quit chan int) {
-    unix_addr, err := net.ResolveUnixAddr("unixgram", addr)
+func ServeUnix(socket_filename string, quit chan int) {
+    unix_addr, err := net.ResolveUnixAddr("unixgram", socket_filename)
     if err != nil {
         log.Fatal("net.ResolveUnixAddr:", err)
     }
 
-    conn, err := net.ListenUnixgram("unixgram", unix_addr)
+    listener, err := net.ListenUnix("unix", unix_addr)
     if err != nil {
-        log.Fatal("net.ListenUnixgram:", err)
+        log.Fatal("net.ListenUnix:", err)
     }
-    defer conn.Close()
-    defer os.Remove(addr)
+    defer listener.Close()
+    defer os.Remove(socket_filename)
 
     log.Printf("Unix sockets listening...\n")
 
-    bytes := make([]byte, BUFFER_LENGTH)
     for {
-        n, addr, err := conn.ReadFrom(bytes)
+        conn, err := listener.AcceptUnix()
         if err != nil {
-            log.Fatal("net.PacketConn.ReadFrom:", err)
-        }
-
-        // Parse JSON
-        var fr FileRequest
-        err = json.Unmarshal(bytes[0:n], &fr)
-        if err != nil {
-            log.Printf("Couldn't unmarshal packet: %v\n", bytes[0:n])
+            log.Printf("Unable to accept: %v", err)
             continue
         }
 
-        time.Sleep(2e9)
-        log.Printf("Unix request: %v\n", fr.Action)
-
-        switch fr.Action {
-        case "read":
-            read_response, _ := DoReadAction(&fr);
-            json_bytes, _ := json.Marshal(read_response)
-            conn.WriteTo(json_bytes, addr)
-            log.Printf("Unix wrote to socket\n")
-        case "stat":
-            DoStatAction(&fr);
-        default:
-            log.Printf("Action %v unknown\n", fr.Action)
-        }
+        go unixHandleConn(conn)
     }
 
     quit <- 1
+}
+
+func unixHandleConn(c *net.UnixConn) {
+    // JSON parsing flags
+    bracketLevel := 0 // 0 = outside any JSON object; 1 = first level brackets; ...
+    inJSON := false
+    //inString := false
+
+    buffer := make([]byte, BUFFER_LENGTH)
+    ring := NewByteRing(BUFFER_LENGTH)
+    for {
+        n, err := c.Read(buffer)
+        if err != nil {
+            log.Fatal("net.UnixConn.Read:", err)
+        }
+
+        // TODO: handle strings
+        for i := 0; i < n; i++ {
+            if inJSON {
+                ring.Write(buffer[i:i+1])
+                if buffer[i] == '{' {
+                    bracketLevel++
+                }
+                if buffer[i] == '}' {
+                    bracketLevel--
+                }
+
+                if bracketLevel == 0 {
+                    inJSON = false
+                    json_bytes := ring.Slice()
+                    log.Printf("Got packet: %v, %v\n", json_bytes, string(json_bytes))
+                    unixHandleRequest(c, json_bytes)
+                }
+            } else {
+                if buffer[i] == '{' {
+                    inJSON = true
+                    bracketLevel++
+                    ring.Write(buffer[i:i+1])
+                }
+            }
+        }
+    }
+}
+
+func unixHandleRequest(c *net.UnixConn, json_bytes []byte) {
+    // Parse JSON
+    var fr FileRequest
+    err := json.Unmarshal(json_bytes, &fr)
+    if err != nil {
+        log.Printf("Couldn't unmarshal packet: %v\n", json_bytes)
+        return
+    }
+
+    time.Sleep(2e9)
+    log.Printf("Unix request: %v\n", fr.Action)
+
+    switch fr.Action {
+    case "read":
+        read_response, _ := DoReadAction(&fr);
+        json_buffer, _ := json.Marshal(read_response)
+        c.Write(json_buffer)
+        log.Printf("Unix wrote to socket\n")
+    case "stat":
+        DoStatAction(&fr);
+    default:
+        log.Printf("Action %v unknown\n", fr.Action)
+    }
 }

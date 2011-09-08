@@ -2,7 +2,6 @@ package main
 
 import (
     "http"
-    "fmt"
     "log"
     "os"
     "path"
@@ -15,7 +14,7 @@ import (
 // HTTP protocol handling for Node server
 func ServeHttp(addr string, quit chan int) {
     http.Handle("/", http.HandlerFunc(httpReqHandler))
-    fmt.Println("HTTP listening...")
+    log.Printf("HTTP listening on %v...\n", addr)
     err := http.ListenAndServe(addr, nil)
     if err != nil {
         log.Fatal("http.ListenAndServe:", err)

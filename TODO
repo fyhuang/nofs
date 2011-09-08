@@ -1,0 +1,3 @@
+* Finish Unix socket implementation
+    - Add support for separating JSON packets from the stream on C end
+    - Add support for multiple JSON packets in same recv()

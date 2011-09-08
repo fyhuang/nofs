@@ -26,3 +26,8 @@ Semantic filesystem
 -------------------
 
 A secondary goal of NoFS is to provide a more interconnected and semantic way of looking at your files. We were inspired by Gmail's labels and thought that this same concept could be applied to file organization as well. No file in NoFS has a "definitive" location in the filesystem: rather, each file can be filed into numerous locations simply by adding or removing labels. NoFS automatically finds semantic connections (based on content and metadata) between files to help automate your organizational methodology.
+
+Credits
+=======
+
+Base64 encode/decode in C is from http://base64.sourceforge.net/.
