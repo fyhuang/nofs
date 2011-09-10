@@ -1,9 +1,9 @@
 #include "protos.h"
 #include <sys/socket.h>
 
-// TODO: for keeping unused bytes for next time
-// TODO: static int gs_BufferCount;
-// TODO: static int gs_BufferPos;
+// For keeping unused bytes for next time
+static int gs_BufferCount = 0;
+static int gs_BufferPos = 0;
 static unsigned char gs_ReadBuffer[BUFFER_LENGTH];
 
 const char *Socket_ReadJSON(int s)
@@ -17,15 +17,17 @@ const char *Socket_ReadJSON(int s)
     AB_Clear(g_AppendBuffer);
 
     while (found == NULL) {
-        // if (gs_BufferCount == 0)
-        int len = recv(s, gs_ReadBuffer, BUFFER_LENGTH, 0);
-        if (len < 0) {
-            perror("nofs: recv");
-            return NULL;
+        if (gs_BufferCount == 0) {
+            gs_BufferCount = recv(s, gs_ReadBuffer, BUFFER_LENGTH, 0);
+            if (gs_BufferCount < 0) {
+                perror("nofs: recv");
+                return NULL;
+            }
+            gs_BufferPos = 0;
         }
 
-        int i;
-        for (i = 0; i < len; i++) {
+        for (; gs_BufferPos < gs_BufferCount; gs_BufferPos++) {
+            int i = gs_BufferPos;
             if (in_json) {
                 uint8 byte = gs_ReadBuffer[i];
                 AB_Append(g_AppendBuffer, byte);
@@ -51,7 +53,8 @@ const char *Socket_ReadJSON(int s)
             }
         }
 
-        // TODO: rest of buffer?
+        if (gs_BufferPos >= gs_BufferCount)
+            gs_BufferCount = 0;
     }
 
     return found;

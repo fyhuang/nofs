@@ -27,12 +27,25 @@ func main() {
     <-quit_chan
 }
 
+type RequestBase struct {
+    Action string
+}
+
 type FileRequest struct {
     Action string
     Bundle string
     Filename string
     Data64 string
 }
+
+type IndexRequest struct {
+    Action string
+    SimpleOutput bool
+    Bundle string
+    Path string
+}
+
+
 
 type ReadResponse struct {
     Result string
@@ -41,6 +54,11 @@ type ReadResponse struct {
 
 type StatResponse struct {
     Result string
+    ResultCode int
     FileType string
-    //ACL []Permission
+}
+
+type IndexResponse struct {
+    Result string
+    ResultCode int
 }

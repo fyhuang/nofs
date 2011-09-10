@@ -82,26 +82,54 @@ func unixHandleConn(c *net.UnixConn) {
 }
 
 func unixHandleRequest(c *net.UnixConn, json_bytes []byte) {
-    // Parse JSON
-    var fr FileRequest
-    err := json.Unmarshal(json_bytes, &fr)
+    // First check what kind of action it is
+    var reqbase RequestBase
+    err := json.Unmarshal(json_bytes, &reqbase)
     if err != nil {
-        log.Printf("Couldn't unmarshal packet: %v\n", json_bytes)
+        log.Printf("Packet doesn't look like a NoFS request: %v\n", string(json_bytes))
         return
     }
 
-    time.Sleep(2e9)
-    log.Printf("Unix request: %v\n", fr.Action)
+    time.Sleep(0.5e8)
+    log.Printf("Unix request: %v\n", reqbase.Action)
 
-    switch fr.Action {
+    switch reqbase.Action {
     case "read":
-        read_response, _ := DoReadAction(&fr);
+        var fr FileRequest
+        err = json.Unmarshal(json_bytes, &fr)
+        if err != nil {
+            log.Printf("Couldn't unmarshal packet: %v\n", json_bytes)
+            return
+        }
+
+        read_response, _ := DoReadAction(&fr)
         json_buffer, _ := json.Marshal(read_response)
         c.Write(json_buffer)
-        log.Printf("Unix wrote to socket\n")
     case "stat":
-        DoStatAction(&fr);
+        var fr FileRequest
+        err = json.Unmarshal(json_bytes, &fr)
+        if err != nil {
+            log.Printf("Couldn't unmarshal packet: %v\n", json_bytes)
+            return
+        }
+
+        stat_response, _ := DoStatAction(&fr)
+        json_buffer, _ := json.Marshal(stat_response)
+        c.Write(json_buffer)
+    case "index":
+        var ir IndexRequest
+        err = json.Unmarshal(json_bytes, &ir)
+        if err != nil {
+            log.Printf("Couldn't unmarshal packet: %v\n", json_bytes)
+            return
+        }
+
+        index_response, _ := DoIndexAction(&ir)
+        json_buffer, _ := json.Marshal(index_response)
+        c.Write(json_buffer)
     default:
-        log.Printf("Action %v unknown\n", fr.Action)
+        log.Printf("Action %v unknown\n", reqbase.Action)
     }
+
+    log.Printf("Packet sent\n")
 }
