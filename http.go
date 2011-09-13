@@ -9,6 +9,7 @@ import (
     "io/ioutil"
     "strings"
     "json"
+	"./nofs"
     )
 
 // HTTP protocol handling for Node server
@@ -64,7 +65,7 @@ func httpReqHandler(w http.ResponseWriter, req *http.Request) {
         log.Printf("Method %v not supported\n", req.Method)
     }
 
-    var fr FileRequest
+    var fr nofs.FileRequest
     json_bytes, err := ioutil.ReadAll(json_stream)
     if err != nil { return }
     err = json.Unmarshal(json_bytes, &fr)

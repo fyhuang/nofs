@@ -6,6 +6,8 @@ import (
     "io/ioutil"
     )
 
+import . "./nofs"
+
 // Handlers for basic actions (read, stat, ...)
 func DoReadAction(fr *FileRequest) (*ReadResponse, os.Error) {
     if len(fr.Bundle) == 0 {
@@ -34,7 +36,7 @@ func DoReadAction(fr *FileRequest) (*ReadResponse, os.Error) {
 
 func DoStatAction(fr *FileRequest) (*StatResponse, os.Error) {
     if len(fr.Bundle) == 0 {
-        return &StatResponse{"Failed;no bundle", 1, ""}, os.NewError("No bundle")
+        return &StatResponse{"Failed;no bundle", 1, "", 0}, os.NewError("No bundle")
     }
 
     bundle := path.Join("files", fr.Bundle)
@@ -42,25 +44,25 @@ func DoStatAction(fr *FileRequest) (*StatResponse, os.Error) {
         // Looking for bundle stat
         fi, err := os.Stat(bundle)
         if err != nil {
-            return &StatResponse{"Failed;bundle doesn't exist", 2, ""}, os.NewError("Bundle doesn't exist")
+            return &StatResponse{"Failed;bundle doesn't exist", 2, "", 0}, os.NewError("Bundle doesn't exist")
         }
 
         if !fi.IsDirectory() {
-            return &StatResponse{"Failed;bundle not a directory", 2, ""}, nil
+            return &StatResponse{"Failed;bundle not a directory", 2, "", 0}, nil
         }
 
-        return &StatResponse{"Success", 0, "Bundle"}, nil
+        return &StatResponse{"Success", 0, "Bundle", 0}, nil
     } else {
         // Looking for file/dir stat
         fi, err := os.Stat(path.Join(bundle, fr.Filename))
         if err != nil {
-            return &StatResponse{"Failed;file doesn't exist", 3, ""}, nil
+            return &StatResponse{"Failed;file doesn't exist", 3, "", 0}, nil
         }
 
         if fi.IsDirectory() {
-            return &StatResponse{"Success", 0, "Directory"}, nil
+            return &StatResponse{"Success", 0, "Directory", 0}, nil
         } else {
-            return &StatResponse{"Success", 0, "File"}, nil
+            return &StatResponse{"Success", 0, "File", fi.Size}, nil
         }
     }
 

@@ -1,0 +1,7 @@
+include $(GOROOT)/src/Make.inc
+
+TARG=nofs
+GOFILES=\
+	nofs.go\
+
+include $(GOROOT)/src/Make.pkg
