@@ -1,3 +1,6 @@
+#ifndef H_NOFS_APPENDBUFFER
+#define H_NOFS_APPENDBUFFER
+
 /// A buffer which can be appended to
 class AppendBuffer
 {
@@ -39,3 +42,5 @@ public:
         return mBuffer;
     }
 };
+
+#endif

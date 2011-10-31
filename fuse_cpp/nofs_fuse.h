@@ -1,3 +1,6 @@
+#ifndef H_NOFS_FUSE
+#define H_NOFS_FUSE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,3 +14,5 @@
 
 // Globals
 extern int g_Socket;
+
+#endif

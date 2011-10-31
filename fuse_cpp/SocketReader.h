@@ -1,3 +1,6 @@
+#ifndef H_NOFS_SOCKETREADER
+#define H_NOFS_SOCKETREADER
+
 #include <sys/socket.h>
 
 #include <vector>
@@ -74,3 +77,5 @@ public:
         return result;
     }
 };
+
+#endif
