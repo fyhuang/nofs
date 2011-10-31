@@ -1,17 +1,41 @@
-typedef unsigned char uint8;
-
 /// A buffer which can be appended to
-typedef struct AppendBuffer_s
+class AppendBuffer
 {
-    uint8 *buffer;
+private:
+    uint8_t *mBuffer;
     /// Size of the buffer
-    unsigned int capacity;
+    unsigned int mCapacity;
     /// How many bytes are currently stored in the buffer
-    unsigned int size;
-} AppendBuffer;
+    unsigned int mCount;
 
-AppendBuffer *AB_New(unsigned int capacity);
-void AB_Delete(AppendBuffer *ab);
-void AB_Append(AppendBuffer *ab, uint8 byte);
-void AB_Clear(AppendBuffer *ab);
-const char *AB_String(AppendBuffer *ab);
+public:
+    AppendBuffer(unsigned int capacity)
+        : mBuffer(NULL), mCapacity(capacity), mCount(0)
+    {
+        mBuffer = new uint8_t[capacity];
+    }
+
+    ~AppendBuffer()
+    {
+        delete[] mBuffer;
+    }
+
+    void append(uint8_t byte)
+    {
+        // TODO: ability to resize buffer
+        mBuffer[mCount] = byte;
+        mCount++;
+
+        // We want to be able to store a NULL byte
+        // at the end
+        assert(mCount < mCapacity);
+    }
+
+    // void clear()
+
+    const char *toString()
+    {
+        mBuffer[mCount] = '\0';
+        return mBuffer;
+    }
+};
