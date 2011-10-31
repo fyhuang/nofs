@@ -1,6 +1,8 @@
 #ifndef H_NOFS_APPENDBUFFER
 #define H_NOFS_APPENDBUFFER
 
+#include <cassert>
+
 /// A buffer which can be appended to
 class AppendBuffer
 {
@@ -39,7 +41,7 @@ public:
     const char *toString()
     {
         mBuffer[mCount] = '\0';
-        return mBuffer;
+        return (const char *)mBuffer;
     }
 };
 

@@ -1,4 +1,4 @@
-package nofs
+package main
 
 type StatefulBuffer struct {
 	Buffer []byte

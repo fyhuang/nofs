@@ -6,8 +6,6 @@ import (
     "io/ioutil"
     )
 
-import . "./nofs"
-
 const filesDir = "files"
 
 // Handlers for basic actions (read, stat, ...)

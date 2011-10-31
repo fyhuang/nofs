@@ -1,5 +1,3 @@
-#include "protos.h"
-
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
 
@@ -12,8 +10,12 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+
+#include "nofs_fuse.h"
+
 // Globals
 int g_Socket = -1;
+static SocketReader *g_Reader = NULL;
 
 // Logging
 void logerror(const char *what) {
@@ -35,7 +37,7 @@ static void nofs_splitpath(const char *input, char **bundle, char **path)
         *path = strdup(after_bundle + 1);
 
         size_t size = after_bundle - input - 1;
-        *bundle = malloc(size + 1);
+        *bundle = (char *)malloc(size + 1);
         memcpy(*bundle, input + 1, size);
     }
     else {
@@ -71,7 +73,8 @@ static int nofs_getattr(const char *rawpath, struct stat *stbuf)
 
             syslog(LOG_ERR, "reading packet");
 
-            const char *packet = Socket_ReadJSON(g_Socket);
+            AppendBuffer *ab = g_Reader->nextJSON();
+            const char *packet = ab->toString();
             if (packet == NULL) {
                 syslog(LOG_ERR, "couldn't read packet");
                 return -EIO;
@@ -122,16 +125,16 @@ static int nofs_read(const char *path, char *buf, size_t size, off_t offset,
     return 0;
 }
 
-static struct fuse_operations nofs_oper = {
-    .getattr = nofs_getattr,
-    .readdir = nofs_readdir,
-    .open = nofs_open,
-    .read = nofs_read,
-};
-
+static struct fuse_operations nofs_oper;
 
 int main(int argc, char *argv[])
 {
+    // Setup FUSE pointers
+    nofs_oper.getattr = nofs_getattr;
+    nofs_oper.readdir = nofs_readdir;
+    nofs_oper.open = nofs_open;
+    nofs_oper.read = nofs_read;
+
     openlog("nofs", LOG_CONS, LOG_USER);
 
     g_Socket = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -154,9 +157,9 @@ int main(int argc, char *argv[])
     syslog(LOG_ERR, "Connected!");
 
     // Initialize globals
-    g_AppendBuffer = AB_New(BUFFER_LENGTH);
+    g_Reader = new SocketReader(g_Socket);
     
-    /*while (true) {
+    while (true) {
         // Send some data
         const char *data = "{\"action\":\"stat\", \"bundle\":\"inbox\"}";
         int err = send(g_Socket, data, strlen(data), 0);
@@ -168,11 +171,13 @@ int main(int argc, char *argv[])
         printf("Sent!\n");
 
         // Receive a JSON packet
-        const char *json = Socket_ReadJSON(g_Socket);
+        AppendBuffer *ab = g_Reader->nextJSON();
+        const char *json = ab->toString();
         printf("Read JSON: %s\n", json);
+        delete ab;
 
         sleep(1);
     }
-    return 0;*/
-    return fuse_main(argc, argv, &nofs_oper, NULL);
+    return 0;
+    //return fuse_main(argc, argv, &nofs_oper, NULL);
 }

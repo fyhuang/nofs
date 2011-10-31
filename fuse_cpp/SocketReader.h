@@ -19,20 +19,22 @@ public:
     {
     }
 
-    void readMoreBytes()
+    bool readMoreBytes()
     {
         if (mBufferPos >= mBuffer.size()) {
             mBuffer.clear();
             mBuffer.resize(BUFFER_LENGTH);
-            int count = recv(s, &mBuffer[0], BUFFER_LENGTH);
+            int count = recv(mSocket, &mBuffer[0], BUFFER_LENGTH, 0);
             if (count < 0) {
                 perror("nofs: recv");
-                return NULL;
+                return false;
             }
             mBuffer.resize(count);
 
             mBufferPos = 0;
         }
+
+        return true;
     }
 
     AppendBuffer *nextJSON()
@@ -44,7 +46,9 @@ public:
         AppendBuffer *result = new AppendBuffer(BUFFER_LENGTH);
         bool found = false;
         while (!found) {
-            readMoreBytes();
+            if (!readMoreBytes()) {
+                return NULL;
+            }
 
             for (; mBufferPos < mBuffer.size(); mBufferPos++) {
                 int i = mBufferPos;

@@ -9,6 +9,7 @@
 #define BUFFER_LENGTH 4096
 
 #include "AppendBuffer.h"
+#include "SocketReader.h"
 
 // JSON functions (TODO)
 

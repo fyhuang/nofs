@@ -1,4 +1,9 @@
-CFLAGS=-std=c99 -D_FILE_OFFSET_BITS=64
-LDFLAGS=-lfuse4x
+#CFLAGS=-std=c99 -D_FILE_OFFSET_BITS=64
+CFLAGS=`pkg-config --cflags fuse`
+CXXFLAGS=$(CFLAGS)
+#LDFLAGS=-lfuse4x
+LDFLAGS=`pkg-config --libs fuse`
 
-nofs_fuse: nofs_fuse.o append_buffer.o socket_read.o
+CC=g++
+
+nofs_fuse: nofs_fuse.o

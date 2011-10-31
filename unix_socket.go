@@ -8,8 +8,6 @@ import (
     "time"
     )
 
-import . "./nofs"
-
 const BUFFER_LENGTH = 1024 * 128
 
 // Unix socket handling for Node server

@@ -1,4 +1,4 @@
-package nofs
+package main
 
 import (
 	"net"
