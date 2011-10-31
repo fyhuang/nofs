@@ -7,7 +7,6 @@ class SocketReader {
 private:
     int mSocket;
 
-    const int BUFFER_LENGTH;
     std::vector<uint8_t> mBuffer;
     int mBufferPos;
 

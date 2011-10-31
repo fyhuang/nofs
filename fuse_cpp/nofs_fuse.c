@@ -14,8 +14,6 @@
 
 // Globals
 int g_Socket = -1;
-uint8 *g_Leftover = NULL;
-AppendBuffer *g_AppendBuffer = NULL;
 
 // Logging
 void logerror(const char *what) {
