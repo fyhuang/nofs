@@ -8,6 +8,8 @@ import (
 
 import . "./nofs"
 
+const filesDir = "files"
+
 // Handlers for basic actions (read, stat, ...)
 func DoReadAction(fr *FileRequest) (*ReadResponse, os.Error) {
     if len(fr.Bundle) == 0 {
@@ -19,7 +21,7 @@ func DoReadAction(fr *FileRequest) (*ReadResponse, os.Error) {
     }
 
     // Open the file
-    bundle := path.Join("files", fr.Bundle)
+    bundle := path.Join(filesDir, fr.Bundle)
     file, err := os.Open(path.Join(bundle, fr.Filename))
     if err != nil {
         return &ReadResponse{"Failed;couldn't find/open file", nil}, os.NewError("Couldn't find/open file")
@@ -39,7 +41,7 @@ func DoStatAction(fr *FileRequest) (*StatResponse, os.Error) {
         return &StatResponse{"Failed;no bundle", 1, "", 0}, os.NewError("No bundle")
     }
 
-    bundle := path.Join("files", fr.Bundle)
+    bundle := path.Join(filesDir, fr.Bundle)
     if len(fr.Filename) == 0 {
         // Looking for bundle stat
         fi, err := os.Stat(bundle)
@@ -70,5 +72,35 @@ func DoStatAction(fr *FileRequest) (*StatResponse, os.Error) {
 }
 
 func DoIndexAction(ir *IndexRequest) (*IndexResponse, os.Error) {
-    return nil, nil
+	var rootPath string
+	if len(ir.Bundle) == 0 {
+		rootPath = filesDir
+	} else if len(ir.Path) == 0 {
+		fullPath := path.Join(filesDir, ir.Bundle)
+		fi, err := os.Stat(fullPath)
+		if err != nil || !fi.IsDirectory() {
+			return &IndexResponse{"Failed;bundle doesn't exist", ir.RequestId, 2, nil}, nil
+		}
+		rootPath = fullPath
+	} else {
+		bundlePath := path.Join(filesDir, ir.Bundle)
+		fullPath := path.Join(bundlePath, ir.Path)
+		fi, err := os.Stat(fullPath)
+		if err != nil || !fi.IsDirectory() {
+			return &IndexResponse{"Failed;directory doesn't exist", ir.RequestId, 3, nil}, nil
+		}
+		rootPath = fullPath
+	}
+
+	// Read the files in directory
+	entries, err := ioutil.ReadDir(rootPath)
+	if err != nil {
+		return &IndexResponse{"Failed;couldn't read directory", ir.RequestId, 4, nil}, nil
+	}
+	index := []IndexEntry{}
+	for _, entry := range entries {
+		index = append(index, IndexEntry{entry.Name, entry.IsDirectory()})
+	}
+
+	return &IndexResponse{"Success", ir.RequestId, 0, index}, nil
 }

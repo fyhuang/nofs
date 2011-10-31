@@ -42,45 +42,20 @@ func ServeUnix(socket_filename string, quit chan int) {
 }
 
 func unixHandleConn(c *net.UnixConn) {
-    // JSON parsing flags
-    bracketLevel := 0 // 0 = outside any JSON object; 1 = first level brackets; ...
-    inJSON := false
-    //inString := false
+	reader := NewJsonReader(c)
 
-    buffer := make([]byte, BUFFER_LENGTH)
-    ring := NewByteRing(BUFFER_LENGTH)
-    for {
-        n, err := c.Read(buffer)
-        if err != nil {
-            log.Fatal("net.UnixConn.Read:", err)
-        }
+	for {
+		json_bytes, err := reader.ReadJson()
+		if err != nil {
+			log.Fatal("Error while reading from connection:", err)
+		} else if json_bytes == nil {
+			log.Printf("Closed connection\n")
+			return
+		}
 
-        // TODO: handle strings
-        for i := 0; i < n; i++ {
-            if inJSON {
-                ring.Write(buffer[i:i+1])
-                if buffer[i] == '{' {
-                    bracketLevel++
-                }
-                if buffer[i] == '}' {
-                    bracketLevel--
-                }
-
-                if bracketLevel == 0 {
-                    inJSON = false
-                    json_bytes := ring.Slice()
-                    log.Printf("Got packet: %v, %v\n", json_bytes, string(json_bytes))
-                    unixHandleRequest(c, json_bytes)
-                }
-            } else {
-                if buffer[i] == '{' {
-                    inJSON = true
-                    bracketLevel++
-                    ring.Write(buffer[i:i+1])
-                }
-            }
-        }
-    }
+		log.Printf("Got packet: %v, %v\n", json_bytes, string(json_bytes))
+		unixHandleRequest(c, json_bytes)
+	}
 }
 
 func unixHandleRequest(c *net.UnixConn, json_bytes []byte) {
