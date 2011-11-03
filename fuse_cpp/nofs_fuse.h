@@ -16,4 +16,10 @@
 // Globals
 extern int g_Socket;
 
+// Fuse helper globals
+struct _globals {
+    std::string bundle;
+    std::string path;
+};
+
 #endif

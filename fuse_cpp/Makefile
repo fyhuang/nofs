@@ -7,3 +7,5 @@ LDFLAGS=`pkg-config --libs fuse`
 CC=g++
 
 nofs_fuse: nofs_fuse.o
+
+nofs_fuse.o : SocketReader.h

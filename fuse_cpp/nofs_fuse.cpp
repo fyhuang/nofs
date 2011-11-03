@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include <string>
+
 
 #include "nofs_fuse.h"
 
@@ -28,22 +30,43 @@ void logerror(const char *what) {
 }
 
 // FUSE
-static void nofs_splitpath(const char *input, char **bundle, char **path)
+/// @returns true if a path into the bundle was provided
+static bool nofs_splitpath(const char *input, std::string &bundle, std::string &path)
 {
     syslog(LOG_ERR, "nofs_splitpath %s", input);
     // free() the strings returned by this func
     const char *after_bundle = strchr(input + 1, '/');
     if (after_bundle != NULL) {
-        *path = strdup(after_bundle + 1);
+        path = std::string(after_bundle + 1);
 
-        size_t size = after_bundle - input - 1;
-        *bundle = (char *)malloc(size + 1);
-        memcpy(*bundle, input + 1, size);
+        size_t bsize = after_bundle - input - 1;
+        bundle = std::string(bsize, '\0');
+        memcpy(&bundle[0], input + 1, size);
+        return true;
     }
     else {
-        *path = NULL;
-        *bundle = strdup(input + 1);
+        path = std::string();
+        bundle = std::string(input + 1);
+        return false;
     }
+}
+
+static AppendBuffer *nofs_syncrt(const char *packet)
+{
+    if (send(g_Socket, packet, strlen(packet), 0) < 0) {
+        logerror("send");
+        return NULL;
+    }
+
+    syslog(LOG_ERR, "reading packet");
+
+    AppendBuffer *ab = g_Reader->nextJSON();
+    if (ab == NULL) {
+        syslog(LOG_ERR, "couldn't read packet");
+        return NULL;
+    }
+
+    return ab;
 }
 
 static int nofs_getattr(const char *rawpath, struct stat *stbuf)
@@ -51,58 +74,52 @@ static int nofs_getattr(const char *rawpath, struct stat *stbuf)
     syslog(LOG_ERR, "nofs_getattr %s", rawpath);
     memset(stbuf, 0, sizeof(struct stat));
 
-    int res = 0;
     if (strcmp(rawpath, "/") == 0) {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
         return 0;
     }
-    else {
-        char *bundle, *path;
-        nofs_splitpath(rawpath, &bundle, &path);
 
-        char buffer[512];
-        if (path == NULL) {
-            syslog(LOG_ERR, "getattr bundle %s", bundle);
-            // Specified a bundle directory
-            snprintf(buffer, 512, "{\"action\":\"stat\",\"bundle\":\"%s\"}", bundle);
-            if (send(g_Socket, buffer, strlen(buffer), 0) < 0) {
-                logerror("send");
-                return -EIO;
-            }
+    std::string bundle, path;
+    bool have_path = nofs_splitpath(rawpath, &bundle, &path);
 
-            syslog(LOG_ERR, "reading packet");
+    char buffer[512];
+    if (path == NULL) {
+        syslog(LOG_ERR, "getattr bundle %s", bundle);
+        // Specified a bundle
+        snprintf(buffer, 512, "{\"action\":\"stat\",\"RequestId\": 0, \"bundle\":\"%s\"}", bundle);
+        AppendBuffer *ab = nofs_syncrt(buffer);
+        if (ab == NULL) return -EIO;
 
-            AppendBuffer *ab = g_Reader->nextJSON();
-            const char *packet = ab->toString();
-            if (packet == NULL) {
-                syslog(LOG_ERR, "couldn't read packet");
-                return -EIO;
-            }
+        const char *packet = ab->toString();
+        syslog(LOG_ERR, "got packet %s", packet);
 
-            syslog(LOG_ERR, "got packet %s", packet);
-
-            if (strstr(packet, "Success") == NULL) {
-                syslog(LOG_ERR, "no success found");
-                return -ENOENT;
-            }
-
-            stbuf->st_mode = S_IFDIR | 0755;
-            stbuf->st_nlink = 2;
-            syslog(LOG_ERR, "found bundle?");
-            return 0;
-        }
-        else {
-            syslog(LOG_ERR, "getattr bundle %s path %s\n", bundle, path);
+        if (strstr(packet, "Success") == NULL) {
+            syslog(LOG_ERR, "operation failed");
             return -ENOENT;
         }
+
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2;
+        syslog(LOG_ERR, "found bundle?");
+        return 0;
+    }
+    else {
+        syslog(LOG_ERR, "getattr bundle %s path %s\n", bundle, path);
+        return -ENOENT;
     }
 }
 
-static int nofs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+static int nofs_readdir(const char *rawpath, void *buf, fuse_fill_dir_t filler,
                         off_t offset, struct fuse_file_info *fi)
 {
     syslog(LOG_ERR, "nofs_readdir %s", path);
+
+    char buffer[512];
+    if (strcmp(rawpath, "/") == 0) {
+        snprintf(buffer, 512, "{\"action\":\"index\", \"RequestId\": 0, \"SimpleOutput\": true}");
+    }
+
     if (strcmp(path, "/") != 0)
         return -ENOENT;
 

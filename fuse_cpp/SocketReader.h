@@ -22,6 +22,7 @@ public:
     bool readMoreBytes()
     {
         if (mBufferPos >= mBuffer.size()) {
+            printf("calling recv\n");
             mBuffer.clear();
             mBuffer.resize(BUFFER_LENGTH);
             int count = recv(mSocket, &mBuffer[0], BUFFER_LENGTH, 0);
@@ -50,6 +51,7 @@ public:
                 return NULL;
             }
 
+            printf("Starting at %d\n", mBufferPos);
             for (; mBufferPos < mBuffer.size(); mBufferPos++) {
                 int i = mBufferPos;
                 if (in_json) {

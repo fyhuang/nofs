@@ -44,11 +44,11 @@ func unixHandleConn(c *net.UnixConn) {
 
 	for {
 		json_bytes, err := reader.ReadJson()
-		if err != nil {
-			log.Fatal("Error while reading from connection:", err)
-		} else if json_bytes == nil {
+        if json_bytes == nil {
 			log.Printf("Closed connection\n")
 			return
+        } else if err != nil {
+			log.Fatal("Error while reading from connection:", err)
 		}
 
 		log.Printf("Got packet: %v, %v\n", json_bytes, string(json_bytes))
