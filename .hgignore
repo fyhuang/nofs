@@ -1,3 +1,4 @@
 syntax: glob
 *.o
 *.6
+*.pyc
