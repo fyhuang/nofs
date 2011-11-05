@@ -3,18 +3,27 @@ try:
 except ImportError:
     from socketserver import *
 
+import json
+
 import json_segment
+import actions
 
 class NoFSUnixServer(UnixStreamServer):
     pass
 
 class NoFSUnixHandler(StreamRequestHandler):
-    def __init__(self):
-        pass
     def handle(self):
-        data = json_segment.next_json(self.rfile)
-        print("{} wrote: {}".format(self.client_address[0], data))
+        while True:
+            data = json_segment.next_json(self.rfile)
+            print("Received: {}".format(data))
+            request = json.loads(data)
+            result = actions.handle(request)
+            if result == False:
+                print("Disconnecting")
+                return
+            self.wfile.write(json.dumps(result))
 
 def serve_unix():
     server = NoFSUnixServer("/tmp/nofs.socket", NoFSUnixHandler)
+    print("Starting Unix sockets server")
     server.serve_forever()
