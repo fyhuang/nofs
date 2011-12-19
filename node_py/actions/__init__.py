@@ -1,13 +1,12 @@
 import os.path
 
 import config
-import stat_action
 
 def handle(request):
     try:
         action = request['action']
         if action == 'stat':
-            return stat_action.do_stat_action(request)
+            return do_stat_action(request)
         elif action == 'index':
             return {'result': 'error'}
         elif action == 'stop':
