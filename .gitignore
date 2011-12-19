@@ -1,0 +1,5 @@
+files/*
+testmount/*
+
+__pycache__/*
+*.pyc
