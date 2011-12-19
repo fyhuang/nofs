@@ -17,11 +17,14 @@ class NoFSUnixHandler(StreamRequestHandler):
     def handle(self):
         while True:
             data = json_segment.next_json(self.rfile)
+            if data == None:
+                print("Disconnecting (broken pipe)")
+                return
             print("Received: {}".format(data))
             request = json.loads(data.decode())
             result = actions.handle(request)
             if result == False:
-                print("Disconnecting")
+                print("Disconnecting (client request)")
                 return
             self.wfile.write(json.dumps(result).encode())
 

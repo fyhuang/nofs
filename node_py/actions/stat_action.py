@@ -2,6 +2,7 @@ import os
 import os.path
 
 import config
+import bundle
 import errors
 
 def do_stat_action(request):

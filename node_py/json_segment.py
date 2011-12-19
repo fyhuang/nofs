@@ -8,8 +8,8 @@ def next_json(stream):
     while True:
         b = stream.read(1)
         if len(b) < 1:
-            time.sleep(0.1)
-            continue
+            # end of stream
+            return None
 
         if bracket_level > 0:
             result += [b]
