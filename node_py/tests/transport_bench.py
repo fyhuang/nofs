@@ -18,13 +18,12 @@ class TestUnixHandler(StreamRequestHandler):
         print("Received request")
         with open('files/inbox/testdir/pic.jpg', 'rb') as f:
             contents = f.read()
-            encoded = base64.b64encode(contents)
             print("Read contents")
 
             fmt = "!BxxxI"
-            packet = struct.pack(fmt, 0, len(encoded))
+            packet = struct.pack(fmt, 0, len(contents))
             self.wfile.write(packet)
-            self.wfile.write(encoded)
+            self.wfile.write(contents)
 
             print("Successfully sent")
 
