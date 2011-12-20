@@ -10,6 +10,7 @@ def next_json(stream):
         if len(b) < 1:
             # end of stream
             return None
+        #print(b)
 
         if bracket_level > 0:
             result += [b]

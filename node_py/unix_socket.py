@@ -6,6 +6,7 @@ except ImportError:
 import json
 import os
 import os.path
+import inspect
 
 import json_segment
 import actions
@@ -23,10 +24,18 @@ class NoFSUnixHandler(StreamRequestHandler):
             print("Received: {}".format(data))
             request = json.loads(data.decode())
             result = actions.handle(request)
-            if result == False:
+            if result is None:
                 print("Disconnecting (client request)")
                 return
-            self.wfile.write(json.dumps(result).encode())
+
+            if inspect.isgenerator(result):
+                print("Sending multipart response")
+                for p in result:
+                    json.dump(p, self.wfile)
+                    #self.wfile.write(json.dumps(p).encode())
+            else:
+                json.dump(result, self.wfile)
+                #self.wfile.write(json.dumps(result).encode())
 
 def serve_unix():
     SOCKET_FILE = "/tmp/nofs.socket"

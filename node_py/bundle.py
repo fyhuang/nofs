@@ -12,7 +12,7 @@ class Bundle(object):
             return True
         return False
 
-    def path_to_file(self, path):
+    def path_to(self, path):
         if len(path) == 0:
             return None
         if path == '/':

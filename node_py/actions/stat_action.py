@@ -15,8 +15,10 @@ def do_stat_action(request):
         return errors.Responses.NOBUNDLE
 
     if 'filepath' in request:
-        fullpath = b.path_to_file(request['filepath'])
-        if os.path.isdir(fullpath):
+        fullpath = b.path_to(request['filepath'])
+        if fullpath is None:
+            return errors.Responses.NOFILE
+        elif os.path.isdir(fullpath):
             return {'result': 'success',
                     'resultcode': 0,
                     'filetype': 'directory',
