@@ -1,0 +1,5 @@
+On huangsrv, Python3
+Tested using 1002K file
+
+JSON: ~19s
+b64 raw: 0.3s
