@@ -4,3 +4,4 @@ Tested using 1002K file
 JSON: ~19s
 b64 raw: 0.3s
 raw: 0.29s
+struct-encoded string: 0.29s

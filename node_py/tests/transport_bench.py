@@ -20,10 +20,9 @@ class TestUnixHandler(StreamRequestHandler):
             contents = f.read()
             print("Read contents")
 
-            fmt = "!BxxxI"
-            packet = struct.pack(fmt, 0, len(contents))
+            fmt = "!BxxxI{0}s".format(len(contents))
+            packet = struct.pack(fmt, 0, len(contents), contents)
             self.wfile.write(packet)
-            self.wfile.write(contents)
 
             print("Successfully sent")
 
@@ -46,9 +45,10 @@ def test_unix():
         header = sf.read(size)
         (result, length) = struct.unpack(header_fmt, header)
 
-        contents = sf.read(length)
+        contents_enc = sf.read(length)
+        (contents) = struct.unpack("{0}s".format(length), contents_enc)
 
-        print(base64.b64encode(contents[:512]))
+        print(contents[0][:512])
     finally:
         sock.close()
         sf.close()
