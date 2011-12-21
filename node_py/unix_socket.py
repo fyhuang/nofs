@@ -3,12 +3,11 @@ try:
 except ImportError:
     from socketserver import *
 
-import json
 import os
 import os.path
 import inspect
 
-import json_segment
+import packet
 import actions
 
 class NoFSUnixServer(UnixStreamServer):
@@ -17,25 +16,16 @@ class NoFSUnixServer(UnixStreamServer):
 class NoFSUnixHandler(StreamRequestHandler):
     def handle(self):
         while True:
-            data = json_segment.next_json(self.rfile)
-            if data == None:
+            header_data = self.rfile.read(packet.Header.binary_fmt_size)
+            if len(header_data) == 0:
                 print("Disconnecting (broken pipe)")
                 return
-            print("Received: {}".format(data))
-            request = json.loads(data.decode())
-            result = actions.handle(request)
-            if result is None:
+            header = packet.Header.from_binary(header_data)
+            print("Received: {}".format(header))
+            result = actions.handle(header, self.rfile, self.wfile)
+            if result == False: 
                 print("Disconnecting (client request)")
                 return
-
-            if inspect.isgenerator(result):
-                print("Sending multipart response")
-                for p in result:
-                    json.dump(p, self.wfile)
-                    #self.wfile.write(json.dumps(p).encode())
-            else:
-                json.dump(result, self.wfile)
-                #self.wfile.write(json.dumps(result).encode())
 
 def serve_unix():
     SOCKET_FILE = "/tmp/nofs.socket"

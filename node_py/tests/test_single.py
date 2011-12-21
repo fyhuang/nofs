@@ -1,31 +1,30 @@
 import sys
-import json
-import base64
 import io
+import struct
 
 sys.path.append('../..')
 import connect
-from node_py import json_segment
+from node_py import packet
 
 try:
     sock = connect.connect()
-    #sock.send(b'{"action":"stat", "bundle":"inbox/", "filepath":"/testdir/pic.jpg"}')
-    #sock.send(b'{"action":"index", "bundle":"inbox"}')
-    sock.send(b'{"action":"read", "bundle":"inbox", "filepath":"testdir/pic.jpg"}')
 
-    sf = sock.makefile('rb', 4096)
-    packet = json_segment.next_json(sf)
-    result = json.loads(packet.decode())
-    print(result)
-    if 'multipart' in result and result['multipart']:
-        num_parts = result['numparts']
+    bundle = "inbox".encode()
+    filepath = "test.txt".encode()
+    header = packet.Header("request", packet.STAT, 0, len(bundle) + len(filepath) + 4)
+    sock.send(header.to_binary())
+    sock.send(struct.pack("!HH", len(bundle), len(filepath)))
+    sock.send(bundle)
+    sock.send(filepath)
 
-        with open('data', 'wb') as f:
-            for i in range(num_parts):
-                packet = json_segment.next_json(sf)
-                #print("Part", i)
-                result = json.loads(packet.decode())
-                f.write(base64.b64decode(result['contents'].encode()))
+    header_raw = sock.recv(packet.Header.binary_fmt_size)
+    header = packet.Header.from_binary(header_raw)
+    print(header)
+
+    if header.code == packet.SUCCESS:
+        packet = sock.recv(header.payload_len)
+        print(struct.unpack("!xxxc", packet))
+
 finally:
     sock.close()
-    sf.close()
+    #sf.close()

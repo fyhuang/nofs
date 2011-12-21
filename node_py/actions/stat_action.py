@@ -1,39 +1,41 @@
 import os
 import os.path
+import struct
 
 import config
 import bundle
-import errors
+import packet
 
-def do_stat_action(request):
-    bundle_name = request['bundle']
-    if len(bundle_name) == 0:
-        return errors.Responses.BADPACKET
+def do_stat_action(header, rfile, wfile):
+    (bundle_len, fp_len) = struct.unpack('!HH', rfile.read(4))
+    if bundle_len == 0:
+        return packet.EBADPACKET
 
+    bundle_name = rfile.read(bundle_len).decode()
     b = bundle.Bundle(bundle_name)
     if not b.valid():
-        return errors.Responses.NOBUNDLE
+        return packet.ENOBUNDLE
 
-    if 'filepath' in request:
-        fullpath = b.path_to(request['filepath'])
+    if fp_len > 0:
+        raw_fp = rfile.read(fp_len).decode()
+        print("stat: {0}, {1}".format(bundle_name, raw_fp))
+        fullpath = b.path_to(raw_fp)
         if fullpath is None:
-            return errors.Responses.NOFILE
+            return packet.ENOFILE
         elif os.path.isdir(fullpath):
-            return {'result': 'success',
-                    'resultcode': 0,
-                    'filetype': 'directory',
-                    'filesize': 0}
+            rh = packet.Header("response", packet.SUCCESS, header.req_id, 4)
+            wfile.write(rh.to_binary())
+            wfile.write(struct.pack("!xxxc", b'd'))
         elif os.path.isfile(fullpath):
             stat_res = os.stat(fullpath)
-            return {'result': 'success',
-                    'resultcode': 0,
-                    'filetype': 'file',
-                    'filesize': stat_res.st_size}
+
+            rh = packet.Header("response", packet.SUCCESS, header.req_id, 4)
+            wfile.write(rh.to_binary())
+            wfile.write(struct.pack("!xxxc", b'f'))
         else:
-            return errors.Responses.NOFILE
+            return packet.ENOFILE
     else:
-        return {'result': 'success',
-                'resultcode': 0,
-                'filetype': 'bundle',
-                'filesize': 0}
+        rh = packet.Header("response", packet.SUCCESS, header.req_id, 4)
+        wfile.write(rh.to_binary())
+        wfile.write(struct.pack("!xxxc", b'b'))
 
