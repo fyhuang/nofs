@@ -2,7 +2,7 @@ import os.path
 
 import config
 import packet
-from actions import stat_action, index_action#, read_action
+from actions import stat_action, index_action, read_action
 
 def handle(header, rfile, wfile):
     action = header.code
@@ -11,7 +11,7 @@ def handle(header, rfile, wfile):
     elif action == packet.INDEX:
         err = index_action.do_index_action(header, rfile, wfile)
     elif action == packet.READ:
-        err = read_action.do_read_action(request)
+        err = read_action.do_read_action(header, rfile, wfile)
     elif action == packet.STOP:
         return False
     else:
