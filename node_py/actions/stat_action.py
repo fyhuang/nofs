@@ -11,6 +11,8 @@ def do_stat_action(header, rfile, wfile):
     if bundle_len == 0:
         return packet.EBADPACKET
 
+    print("path lengths: {0}, {1}".format(bundle_len, fp_len))
+
     bundle_name = rfile.read(bundle_len).decode()
     b = bundle.Bundle(bundle_name)
     if not b.valid():

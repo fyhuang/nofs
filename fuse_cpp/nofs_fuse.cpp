@@ -1,23 +1,17 @@
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
 
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <syslog.h>
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-
-#include <string>
 
 
 #include "nofs_fuse.h"
 
 // Globals
 int g_Socket = -1;
-static SocketReader *g_Reader = NULL;
+
+std::vector<uint8_t> g_Buffer;
 
 // Logging
 void logerror(const char *what) {
@@ -29,46 +23,50 @@ void logerror(const char *what) {
     }
 }
 
-// FUSE
-/// @returns true if a path into the bundle was provided
-static bool nofs_splitpath(const char *input, std::string &bundle, std::string &path)
-{
-    syslog(LOG_ERR, "nofs_splitpath %s", input);
-    // free() the strings returned by this func
-    const char *after_bundle = strchr(input + 1, '/');
-    if (after_bundle != NULL) {
-        path = std::string(after_bundle + 1);
-
-        size_t bsize = after_bundle - input - 1;
-        bundle = std::string(bsize, '\0');
-        memcpy(&bundle[0], input + 1, size);
-        return true;
+bool recv_exact(int sock, uint8_t *buf, size_t size) {
+    int total = 0;
+    while (total < size) {
+        int rd = recv(sock, buf+total, size, 0);
+        if (rd <= 0) {
+            return false;
+        }
+        total += rd;
     }
-    else {
-        path = std::string();
-        bundle = std::string(input + 1);
-        return false;
-    }
+    return true;
 }
 
-static AppendBuffer *nofs_syncrt(const char *packet)
+int send_paths(int sock, const char *bundle, const char *path) {
+    uint16_t len = htons(strlen(bundle));
+    send(sock, &len, sizeof(uint16_t), 0);
+    len = htons(strlen(path));
+    send(sock, &len, sizeof(uint16_t), 0);
+
+    send(sock, bundle, strlen(bundle), 0);
+    send(sock, path, strlen(path), 0);
+
+    return 0; // TODO
+}
+
+static std::vector<uint8_t> *nofs_exch(uint8_t *packet)
 {
-    if (send(g_Socket, packet, strlen(packet), 0) < 0) {
+    const char *ccp = (const char *)packet;
+    if (send(g_Socket, ccp, strlen(ccp), 0) < 0) {
         logerror("send");
         return NULL;
     }
 
     syslog(LOG_ERR, "reading packet");
 
-    AppendBuffer *ab = g_Reader->nextJSON();
-    if (ab == NULL) {
-        syslog(LOG_ERR, "couldn't read packet");
-        return NULL;
-    }
+    Header header;
+    Header::recvInto(g_Socket, &header);
+    printf("%d of %d packets", header.packet_num, header.total_packets);
 
-    return ab;
+    // TODO
+    return &g_Buffer;
 }
 
+
+// FUSE
 static int nofs_getattr(const char *rawpath, struct stat *stbuf)
 {
     syslog(LOG_ERR, "nofs_getattr %s", rawpath);
@@ -80,25 +78,12 @@ static int nofs_getattr(const char *rawpath, struct stat *stbuf)
         return 0;
     }
 
-    std::string bundle, path;
+    char *bundle, *path;
     bool have_path = nofs_splitpath(rawpath, &bundle, &path);
 
-    char buffer[512];
-    if (path == NULL) {
+    if (!have_path) {
         syslog(LOG_ERR, "getattr bundle %s", bundle);
         // Specified a bundle
-        snprintf(buffer, 512, "{\"action\":\"stat\",\"RequestId\": 0, \"bundle\":\"%s\"}", bundle);
-        AppendBuffer *ab = nofs_syncrt(buffer);
-        if (ab == NULL) return -EIO;
-
-        const char *packet = ab->toString();
-        syslog(LOG_ERR, "got packet %s", packet);
-
-        if (strstr(packet, "Success") == NULL) {
-            syslog(LOG_ERR, "operation failed");
-            return -ENOENT;
-        }
-
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
         syslog(LOG_ERR, "found bundle?");
@@ -113,22 +98,49 @@ static int nofs_getattr(const char *rawpath, struct stat *stbuf)
 static int nofs_readdir(const char *rawpath, void *buf, fuse_fill_dir_t filler,
                         off_t offset, struct fuse_file_info *fi)
 {
-    syslog(LOG_ERR, "nofs_readdir %s", path);
+    syslog(LOG_ERR, "nofs_readdir %s", rawpath);
 
     char buffer[512];
     if (strcmp(rawpath, "/") == 0) {
-        snprintf(buffer, 512, "{\"action\":\"index\", \"RequestId\": 0, \"SimpleOutput\": true}");
+        // TODO: list bundles
+        filler(buf, ".", NULL, 0);
+        filler(buf, "..", NULL, 0);
+        filler(buf, "inbox", NULL, 0);
+        return 0;
     }
+    else {
+        char *bundle, *path;
+        if (nofs_splitpath(rawpath, &bundle, &path) == true) {
+            return -ENOENT;
+        }
 
-    if (strcmp(path, "/") != 0)
-        return -ENOENT;
+        Header h = {{'N','F','Q'}, Header::INDEX, 0, 1, 1, 0};
+        int err = h.send(g_Socket);
+        if (err < 0) { return -EIO; }
 
-    // TODO
-    filler(buf, ".", NULL, 0);
-    filler(buf, "..", NULL, 0);
-    filler(buf, "inbox", NULL, 0);
+        err = send_paths(g_Socket, bundle, "");
+        if (err < 0) { return -EIO; }
 
-    return 0;
+        // Get response (TODO: don't allocate every time)
+        Header::recvInto(g_Socket, &h);
+        uint8_t *buffer = new uint8_t[h.payload_len];
+        recv_exact(g_Socket, buffer, h.payload_len);
+
+        if (h.code != 0) return -ENOENT;
+
+        filler(buf, ".", NULL, 0);
+        filler(buf, "..", NULL, 0);
+
+        mem_stream<true> ms(buffer, h.payload_len);
+        size_t num_entries = ms.read4();
+        for (size_t i = 0; i < num_entries; i++) {
+            IndexEntry ie;
+            IndexEntry::readInto(&ms, &ie);
+            filler(buf, ie.name.c_str(), NULL, 0);
+        }
+        
+        return 0;
+    }
 }
 
 static int nofs_open(const char *path, struct fuse_file_info *fi)
@@ -173,28 +185,39 @@ int main(int argc, char *argv[])
 
     syslog(LOG_ERR, "Connected!");
 
-    // Initialize globals
-    g_Reader = new SocketReader(g_Socket);
-    
-    while (true) {
+    /*while (true) {
         // Send some data
-        const char *data = "{\"action\":\"stat\", \"bundle\":\"inbox\"}";
-        int err = send(g_Socket, data, strlen(data), 0);
+        Header h = {{'N','F','Q'}, Header::INDEX, 0, 1, 1, 0};
+        int err = h.send(g_Socket);
         if (err < 0) {
             perror("nofs: sendto");
             exit(1);
         }
 
+        send_paths(g_Socket, "inbox", "");
+
         printf("Sent!\n");
 
-        // Receive a JSON packet
-        AppendBuffer *ab = g_Reader->nextJSON();
-        const char *json = ab->toString();
-        printf("Read JSON: %s\n", json);
-        delete ab;
+        // Receive a packet
+        Header::recvInto(g_Socket, &h);
+        printf("Code %d, %d of %d packets\n", h.code, h.packet_num, h.total_packets);
+        printf("\tLen %d\n", h.payload_len);
+        uint8_t *buffer = new uint8_t[h.payload_len];
+        recv_exact(g_Socket, buffer, h.payload_len);
+
+        mem_stream<true> ms(buffer, h.payload_len);
+        size_t num_entries = ms.read4();
+        for (size_t i = 0; i < num_entries; i++) {
+            IndexEntry ie;
+            IndexEntry::readInto(&ms, &ie);
+            printf("\tIndex entry: %s\n", ie.name.c_str());
+            printf("\tStat result: %d\n", ie.stat.entity_type);
+        }
+
+        delete[] buffer;
 
         sleep(1);
     }
-    return 0;
-    //return fuse_main(argc, argv, &nofs_oper, NULL);
+    return 0;*/
+    return fuse_main(argc, argv, &nofs_oper, NULL);
 }

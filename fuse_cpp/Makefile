@@ -6,6 +6,8 @@ LDFLAGS=`pkg-config --libs fuse`
 
 CC=g++
 
-nofs_fuse: nofs_fuse.o
+nofs_fuse: nofs_fuse.o paths.o
 
-nofs_fuse.o : SocketReader.h
+clean:
+	rm *.o
+	rm nofs_fuse

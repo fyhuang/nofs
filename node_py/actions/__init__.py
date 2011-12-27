@@ -15,8 +15,10 @@ def handle(header, rfile, wfile):
     elif action == packet.STOP:
         return False
     else:
+        print("invalid action!")
         wfile.write(packet.make_error(packet.EINVACTION, header.req_id).to_binary())
 
     if err is not None:
+        print("sending error {0}".format(packet.resultcode_ixs[err]))
         wfile.write(packet.make_error(err, header.req_id).to_binary())
     return True
