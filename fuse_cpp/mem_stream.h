@@ -2,12 +2,21 @@
 #define H_MEMSTREAM
 
 #include <arpa/inet.h>
+
+#ifndef __APPLE__
+#include <endian.h>
+#else
+#include <libkern/OSByteOrder.h>
+#endif
+
 #include <exception>
 
 class end_of_stream : std::exception {
+public:
+    const char *what() { return "Reached end of memory stream"; }
 };
 
-template <bool do_net_transform>
+template <bool net_transform>
 class mem_stream {
 private:
     uint8_t *mBuffer;
@@ -16,6 +25,10 @@ private:
 
 public:
     mem_stream(uint8_t *buf, size_t size) {
+        reset(buf, size);
+    }
+
+    void reset(uint8_t *buf, size_t size) {
         mBuffer = buf;
         mSize = size;
         mPos = 0;
@@ -30,18 +43,32 @@ public:
         if (mPos >= mSize-1) throw end_of_stream();
         uint16_t val = *((uint16_t*)(mBuffer + mPos));
         mPos += 2;
-        if (do_net_transform) {
+        if (net_transform) {
             return htons(val);
         }
         return val;
     }
 
-    uint16_t read4() {
+    uint32_t read4() {
         if (mPos >= mSize-3) throw end_of_stream();
         uint32_t val = *((uint32_t*)(mBuffer + mPos));
         mPos += 4;
-        if (do_net_transform) {
+        if (net_transform) {
             return htonl(val);
+        }
+        return val;
+    }
+
+    uint64_t read8() {
+        if (mPos >= mSize-7) throw end_of_stream();
+        uint64_t val = *((uint64_t*)(mBuffer + mPos));
+        mPos += 8;
+        if (net_transform) {
+#ifndef __APPLE__
+            return betoh64(val);
+#else
+            return OSSwapBigToHostInt64(val);
+#endif
         }
         return val;
     }

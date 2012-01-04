@@ -12,16 +12,24 @@
 #include <syslog.h>
 
 
-#include <vector>
 #include <string>
 
+#ifndef __APPLE__
 #define THREAD_LOCAL __thread
+#else
+#define THREAD_LOCAL
+#endif
+
 #define BUFFER_LENGTH 4096
 
-extern bool recv_exact(int sock, uint8_t *buf, size_t size);
+#ifdef DEBUG
+#define DBPRINTF(...) debug_printf(__VA_ARGS__)
+#define DBERROR(errcode) DBPRINTF("%s returning %d\n", __func__, errcode); return -errcode
+#else
+#define DBPRINTF(...) do{}while(false)
+#endif
 
-#include "mem_stream.h"
-#include "paths.h"
-#include "packet.h"
+extern bool recv_exact(int sock, uint8_t *buf, size_t size);
+extern void debug_printf(const char *format, ...);
 
 #endif

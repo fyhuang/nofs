@@ -3,3 +3,5 @@ testmount/*
 
 __pycache__/*
 *.pyc
+
+*.o

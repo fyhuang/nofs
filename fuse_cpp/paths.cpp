@@ -3,7 +3,7 @@
 THREAD_LOCAL char g_Bundle[4096];
 THREAD_LOCAL char g_Path[4096];
 
-bool nofs_splitpath(const char *input, char **bundle, char **path) {
+bool nofs_splitpath(const char *input, const char **bundle, const char **path) {
     syslog(LOG_ERR, "nofs_splitpath %s", input);
 
     const char *after_bundle = strchr(input + 1, '/');

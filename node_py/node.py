@@ -1,5 +1,7 @@
 import sys
+import os.path
 
+import config
 from unix_socket import *
 
 def main(argv=None):
@@ -8,6 +10,12 @@ def main(argv=None):
         sys.exit()
     if argv is None:
         argv = sys.argv
+
+    # Check for data dir existence
+    if not os.path.isdir(config.root_dir):
+        print("Data dir doesn't exist!")
+        sys.exit()
+
     # Start servers
     serve_unix()
 

@@ -1,4 +1,9 @@
+#ifndef H_PACKET
+#define H_PACKET
+
 #include <arpa/inet.h>
+
+#include "mem_stream.h"
 
 struct Header {
     unsigned char magic[3];
@@ -49,6 +54,8 @@ struct Header {
 
 struct StatResult {
     enum { File, Directory, Bundle } entity_type;
+    uint64_t ctime;
+    uint64_t size;
 
     static bool readInto(mem_stream<true> *str, StatResult *r) {
         // TODO: padding
@@ -67,6 +74,9 @@ struct StatResult {
             break;
         }
 
+        r->ctime = str->read8();
+        r->size = str->read8();
+
         return true;
     }
 };
@@ -84,3 +94,4 @@ struct IndexEntry {
     }
 };
 
+#endif

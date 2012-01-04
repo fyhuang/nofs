@@ -20,22 +20,15 @@ def do_index_action(header, rfile, wfile):
     num_entries = 0
     buf = io.BytesIO()
     for (dirpath, dirnames, filenames) in os.walk(b.path):
-        for d in dirnames:
-            full_path = os.path.join(dirpath, d)
-            trunc_path = full_path[len(b.path):].encode()
-
-            buf.write(struct.pack("!H", len(trunc_path)))
-            buf.write(trunc_path)
-            buf.write(struct.pack("!xxxc", b'd'))
-
-            num_entries += 1
-        for f in filenames:
+        for f in filenames + dirnames:
             full_path = os.path.join(dirpath, f)
-            trunc_path = full_path[len(b.path):].encode()
+            trunc_path = full_path[len(b.path):]
+            tp_enc = trunc_path.encode()
 
-            buf.write(struct.pack("!H", len(trunc_path)))
-            buf.write(trunc_path)
-            buf.write(struct.pack("!xxxc", b'f'))
+            buf.write(struct.pack("!H", len(tp_enc)))
+            buf.write(tp_enc)
+            sr = b.stat(trunc_path)
+            buf.write(sr.to_binary())
 
             num_entries += 1
 

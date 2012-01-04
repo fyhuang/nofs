@@ -16,7 +16,7 @@ class NoFSUnixServer(UnixStreamServer):
 class NoFSUnixHandler(StreamRequestHandler):
     def handle(self):
         while True:
-            header_data = self.rfile.read(packet.Header.binary_fmt_size)
+            header_data = self.rfile.read(packet.Header.binary_size)
             if len(header_data) == 0:
                 print("Disconnecting (broken pipe)")
                 return

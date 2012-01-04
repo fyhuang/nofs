@@ -1,12 +1,13 @@
-#CFLAGS=-std=c99 -D_FILE_OFFSET_BITS=64
-CFLAGS=`pkg-config --cflags fuse`
+CFLAGS=`pkg-config --cflags fuse` -g -DDEBUG -Wall
 CXXFLAGS=$(CFLAGS)
-#LDFLAGS=-lfuse4x
-LDFLAGS=`pkg-config --libs fuse`
+LDFLAGS=`pkg-config --libs fuse` -g
 
 CC=g++
 
-nofs_fuse: nofs_fuse.o paths.o
+SOURCES=$(wildcard *.cpp)
+
+all: nofs_fuse
+nofs_fuse: $(SOURCES:.cpp=.o)
 
 clean:
 	rm *.o

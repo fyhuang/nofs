@@ -1,6 +1,8 @@
 import os
 import os.path
 import struct
+import stat
+import time
 
 import config
 import bundle
@@ -21,23 +23,17 @@ def do_stat_action(header, rfile, wfile):
     if fp_len > 0:
         raw_fp = rfile.read(fp_len).decode()
         print("stat: {0}, {1}".format(bundle_name, raw_fp))
-        fullpath = b.path_to(raw_fp)
-        if fullpath is None:
+        sr = b.stat(raw_fp)
+        if sr is None:
             return packet.ENOFILE
-        elif os.path.isdir(fullpath):
-            rh = packet.Header("response", packet.SUCCESS, header.req_id, 4)
-            wfile.write(rh.to_binary())
-            wfile.write(struct.pack("!xxxc", b'd'))
-        elif os.path.isfile(fullpath):
-            stat_res = os.stat(fullpath)
 
-            rh = packet.Header("response", packet.SUCCESS, header.req_id, 4)
-            wfile.write(rh.to_binary())
-            wfile.write(struct.pack("!xxxc", b'f'))
-        else:
-            return packet.ENOFILE
-    else:
-        rh = packet.Header("response", packet.SUCCESS, header.req_id, 4)
+        rh = packet.Header("response", packet.SUCCESS, header.req_id, packet.StatResponse.binary_size)
         wfile.write(rh.to_binary())
-        wfile.write(struct.pack("!xxxc", b'b'))
+        wfile.write(sr.to_binary())
+    else:
+        rh = packet.Header("response", packet.SUCCESS, header.req_id, packet.StatResponse.binary_size)
+        wfile.write(rh.to_binary())
+
+        sr = packet.StatResponse(b'b', 0, 0)
+        wfile.write(sr.to_binary())
 

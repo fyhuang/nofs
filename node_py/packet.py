@@ -20,7 +20,7 @@ for k,v in resultcodes.items():
 
 class Header(object):
     binary_fmt = "!3sBIHHI"
-    binary_fmt_size = struct.calcsize(binary_fmt)
+    binary_size = struct.calcsize(binary_fmt)
 
     def __init__(self, pkt_type, code, req_id, payload_len, total_pkts=1, pkt_num=1):
         self.pkt_type = pkt_type
@@ -64,7 +64,7 @@ class Header(object):
         return Header(pt, code, rid, plen, tp, pn)
 
     def from_stream(st):
-        data = st.read(Header.binary_fmt_size)
+        data = st.read(Header.binary_size)
         return Header.from_binary(data)
 
     def to_binary(self):
@@ -73,6 +73,19 @@ class Header(object):
         else:
             magic = b'NFR'
         return struct.pack(Header.binary_fmt, magic, self.code, self.req_id, self.total_pkts, self.pkt_num, self.payload_len)
+
+class StatResponse(object):
+    binary_fmt = "!xxxcQQ"
+    binary_size = struct.calcsize(binary_fmt)
+
+    def __init__(self, ftype, ctime_utc, size):
+        self.ftype = ftype
+        self.ctime_utc = ctime_utc
+        self.size = size
+
+    def to_binary(self):
+        return struct.pack(StatResponse.binary_fmt, self.ftype, self.ctime_utc, self.size)
+
 
 def make_error(code, rid):
     return Header("response", code, rid, 0)
