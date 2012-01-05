@@ -19,16 +19,19 @@ public:
 template <bool net_transform>
 class mem_stream {
 private:
-    uint8_t *mBuffer;
+    const uint8_t *mBuffer;
     size_t mSize;
     size_t mPos;
 
 public:
-    mem_stream(uint8_t *buf, size_t size) {
+    mem_stream(const uint8_t *buf, size_t size) {
         reset(buf, size);
     }
+    mem_stream(const std::vector<uint8_t> &vec) {
+    	reset(&vec[0], vec.size());
+    }
 
-    void reset(uint8_t *buf, size_t size) {
+    void reset(const uint8_t *buf, size_t size) {
         mBuffer = buf;
         mSize = size;
         mPos = 0;

@@ -8,16 +8,19 @@
 #include <ctime>
 #include <cstdarg>
 
+#include <algorithm>
+
 
 #include "nofs_fuse.h"
+
+#include "logging.h"
+#include "network.h"
 #include "paths.h"
 #include "index.h"
 
 // Globals
 int g_Socket = -1;
 FILE *g_DebugFile = NULL;
-
-std::vector<uint8_t> g_Buffer;
 
 // Logging
 void logerror_real(const char *what, const char *func, int line) {
@@ -28,7 +31,6 @@ void logerror_real(const char *what, const char *func, int line) {
         syslog(LOG_ERR, "%s: %m (in %s:%d)", what, func, line);
     }
 }
-#define logerror(what) logerror_real(what, __func__, __LINE__)
 
 void debug_printf(const char *format, ...) {
     if (g_DebugFile == NULL) {
@@ -49,78 +51,25 @@ void debug_printf(const char *format, ...) {
     fflush(g_DebugFile);
 }
 
-bool recv_exact(int sock, uint8_t *buf, size_t size) {
-    size_t total = 0;
-    while (total < size) {
-        int rd = recv(sock, buf+total, size, 0);
-        if (rd <= 0) {
-            return false;
-        }
-        total += rd;
-    }
-    return true;
-}
-
-int send_paths(int sock, const char *bundle, const char *path) {
-    uint16_t len = htons(strlen(bundle));
-    send(sock, &len, sizeof(uint16_t), 0);
-
-    if (path != NULL) {
-        len = htons(strlen(path));
-    }
-    else {
-        len = 0;
-    }
-    send(sock, &len, sizeof(uint16_t), 0);
-
-    send(sock, bundle, strlen(bundle), 0);
-
-    if (path != NULL) {
-        send(sock, path, strlen(path), 0);
-    }
-
-    return 0; // TODO
-}
-
-static std::vector<uint8_t> *nofs_exch(uint8_t *packet)
-{
-    const char *ccp = (const char *)packet;
-    if (send(g_Socket, ccp, strlen(ccp), 0) < 0) {
-        logerror("send");
-        return NULL;
-    }
-
-    syslog(LOG_ERR, "reading packet");
-
-    Header header;
-    Header::recvInto(g_Socket, &header);
-    printf("%d of %d packets", header.packet_num, header.total_packets);
-
-    // TODO
-    return &g_Buffer;
-}
-
 static int nofs_stat(const char *bundle, const char *path, struct stat *stbuf) {
     memset(stbuf, 0, sizeof(struct stat));
     stbuf->st_uid = geteuid();
     stbuf->st_gid = getegid();
 
     // Send request
-    Header h = {{'N','F','Q'}, Header::STAT, 0, 1, 1, 0};
+    Header h = {{'N','F','Q'}, Header::STAT, 0, 1, 1, paths_pkt_size(bundle, path)};
     int err = h.send(g_Socket);
     if (err < 0) { logerror("send"); return -EIO; }
     err = send_paths(g_Socket, bundle, path);
     if (err < 0) { logerror("send"); return -EIO; }
 
     // Get response (TODO: don't allocate every time)
-    Header::recvInto(g_Socket, &h);
-    uint8_t *buffer = new uint8_t[h.payload_len];
-    recv_exact(g_Socket, buffer, h.payload_len);
+    const packetbuf &pb = read_packet(g_Socket, &h);
     if (h.code != 0) { DBERROR(ENOENT); }
 
     StatResult sr;
     try {
-        mem_stream<true> ms(buffer, h.payload_len);
+        mem_stream<true> ms(pb);
         StatResult::readInto(&ms, &sr);
     }
     catch (end_of_stream &e) {
@@ -141,13 +90,13 @@ static int nofs_stat(const char *bundle, const char *path, struct stat *stbuf) {
     else {
         DBPRINTF("stat %s:%s\n", bundle, path);
         if (sr.entity_type == StatResult::Directory) {
-            stbuf->st_mode = S_IFDIR | 0700;
+            stbuf->st_mode = S_IFDIR | 0755;
             stbuf->st_nlink = 2;
             DBPRINTF("result dir\n");
             return 0;
         }
         else if (sr.entity_type == StatResult::File) {
-            stbuf->st_mode = S_IFREG | 0600;
+            stbuf->st_mode = S_IFREG | 0644;
             stbuf->st_nlink = 1;
             stbuf->st_size = sr.size;
             stbuf->st_ctime = sr.ctime;
@@ -195,7 +144,7 @@ static int nofs_readdir(const char *rawpath, void *buf, fuse_fill_dir_t filler,
         const char *bundle, *path;
         nofs_splitpath(rawpath, &bundle, &path);
 
-        Header h = {{'N','F','Q'}, Header::INDEX, 0, 1, 1, 0};
+        Header h = {{'N','F','Q'}, Header::INDEX, 0, 1, 1, paths_pkt_size(bundle, path)};
         int err = h.send(g_Socket);
         if (err < 0) { return -EIO; }
 
@@ -246,6 +195,8 @@ static int nofs_open(const char *rawpath, struct fuse_file_info *fi)
     struct stat st;
     int err = nofs_stat(bundle, path, &st);
     if (err != 0) return err;
+
+    // NOTE: on OSX, fuse4x takes care of checking user permissions
     if ((fi->flags & O_ACCMODE) == O_RDONLY) {
         DBPRINTF("opened read only\n");
     }
@@ -260,19 +211,43 @@ static int nofs_read(const char *rawpath, char *buf, size_t size, off_t offset,
                      struct fuse_file_info *fi)
 {
     const char *bundle, *path;
-    nofs_splitpath(rawpath, &bundle, &path);
+    bool have_path = nofs_splitpath(rawpath, &bundle, &path);
 
     DBPRINTF("read %s\n", rawpath);
+
+    if (!have_path) { return -EACCES; }
 
     // TODO: can the following be taken out?
     struct stat st;
     int err = nofs_stat(bundle, path, &st);
     if (err != 0) return err;
 
+    Header h = {{'N','F','Q'}, Header::READ, 0, 1, 1, paths_pkt_size(bundle, path)};
+    err = h.send(g_Socket);
+    if (err < 0) { logerror("send"); return -EIO; }
+
+    err = send_paths(g_Socket, bundle, path);
+    if (err < 0) { logerror("send_paths"); return -EIO; }
+
     // Read the entire file into memory
     std::vector<uint8_t> buffer;
 
-    return 0;
+    int total_pkts = 1;
+    for (int ix_packet = 0; ix_packet < total_pkts; ix_packet++) {
+    	Header::recvInto(g_Socket, &h);
+    	total_pkts = h.total_packets;
+    	size_t prev_size = buffer.size();
+    	buffer.resize(prev_size + h.payload_len);
+    	if (recv_exact(g_Socket, &buffer[prev_size], h.payload_len) == false) {
+    		logerror("recv_exact");
+    		return -EIO;
+    	}
+    }
+
+    // Now spit out the part requested (TODO: large files)
+    size_t real_size = std::min(size, (size_t)(buffer.size() - offset));
+    memcpy(buf, &buffer[offset], real_size);
+    return real_size;
 }
 
 static struct fuse_operations nofs_oper;

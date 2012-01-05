@@ -22,14 +22,4 @@
 
 #define BUFFER_LENGTH 4096
 
-#ifdef DEBUG
-#define DBPRINTF(...) debug_printf(__VA_ARGS__)
-#define DBERROR(errcode) DBPRINTF("%s returning %d\n", __func__, errcode); return -errcode
-#else
-#define DBPRINTF(...) do{}while(false)
-#endif
-
-extern bool recv_exact(int sock, uint8_t *buf, size_t size);
-extern void debug_printf(const char *format, ...);
-
 #endif

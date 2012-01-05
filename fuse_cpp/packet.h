@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 
 #include "mem_stream.h"
+#include "network.h"
 
 struct Header {
     unsigned char magic[3];

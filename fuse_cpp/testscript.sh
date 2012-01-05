@@ -7,7 +7,13 @@ ORIG_CWD=`pwd`
 cd mountpt
 cd inbox
 ls -l
-cat test.txt
+#time bash copyn.sh 1000 pic.jpg "$ORIG_CWD/"
+cp pic.jpg "$ORIG_CWD/"
+#cd testdir
+#ls -l
+#cat largefile.txt
 
 cd "$ORIG_CWD"
 umount mountpt/
+
+open pic.jpg
