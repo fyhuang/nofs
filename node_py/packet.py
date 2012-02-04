@@ -1,6 +1,6 @@
 import struct
 
-actions = {'STAT': 1, 'INDEX': 2, 'READ': 3, 'STOP': 255}
+actions = {'STAT': 1, 'INDEX': 2, 'READ': 3, 'AUTH': 4, 'STOP': 255}
 action_ixs = {v:k for (k,v) in actions.items()}
 for k,v in actions.items():
     globals()[k] = v

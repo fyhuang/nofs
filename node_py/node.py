@@ -1,23 +1,3 @@
-import sys
-import os.path
-
-import config
-from unix_socket import *
-
-def main(argv=None):
-    if sys.version_info[0] < 3:
-        print("This program requires Python 3")
-        sys.exit()
-    if argv is None:
-        argv = sys.argv
-
-    # Check for data dir existence
-    if not os.path.isdir(config.root_dir):
-        print("Data dir doesn't exist!")
-        sys.exit()
-
-    # Start servers
-    serve_unix()
-
-if __name__ == "__main__":
-    main()
+class PeerNode(object):
+    def __init__(self, addr):
+        pass
