@@ -2,7 +2,7 @@ import sys
 import os.path
 
 import config
-from unix_socket import *
+from unix_server import *
 
 def main(argv=None):
     if sys.version_info[0] < 3:
@@ -12,7 +12,7 @@ def main(argv=None):
         argv = sys.argv
 
     # Check for data dir existence
-    if not os.path.isdir(config.root_dir):
+    if not os.path.isdir(config.DATA_DIR):
         print("Data dir doesn't exist!")
         sys.exit()
 
