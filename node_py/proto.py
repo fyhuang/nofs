@@ -9,5 +9,5 @@ def determine(stream):
     elif ch == b'N':
         st = stream.read(3)
         if st == b'ODE':
-            return 'node'
+            return 'internode'
     return None

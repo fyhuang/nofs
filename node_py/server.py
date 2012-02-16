@@ -3,6 +3,8 @@ import os.path
 
 import config
 from unix_server import *
+from tcp_server import *
+from shared import SharedData
 
 def main(argv=None):
     if sys.version_info[0] < 3:
@@ -16,8 +18,11 @@ def main(argv=None):
         print("Data dir doesn't exist!")
         sys.exit()
 
+    sd = SharedData()
+
     # Start servers
     serve_unix()
+    serve_tcp("localhost", 6637, sd)
 
 if __name__ == "__main__":
     main()
