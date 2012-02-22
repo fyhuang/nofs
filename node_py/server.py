@@ -3,8 +3,10 @@ import os.path
 
 import config
 from unix_server import *
+from http_server import *
 from tcp_server import *
 from shared import SharedData
+from peer_node import PeerNode
 
 def main(argv=None):
     if sys.version_info[0] < 3:
@@ -18,11 +20,17 @@ def main(argv=None):
         print("Data dir doesn't exist!")
         sys.exit()
 
-    sd = SharedData()
+    # Initialize
+    node = PeerNode("localhost", "localhost")
+    sd = SharedData(node)
 
     # Start servers
-    serve_unix()
-    serve_tcp("localhost", 6637, sd)
+    #serve_unix_thread(sd)
+    serve_http_thread("localhost", 16637, sd)
+    #serve_tcp("localhost", 6637, sd)
+    while True:
+        import time
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
