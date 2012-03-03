@@ -1,4 +1,5 @@
 import os.path
+from contextlib import closing
 from bottle import route, run, request, HTTPError
 
 import storage
@@ -27,9 +28,11 @@ def add_file():
 @route('/admin/list_files')
 def list_files():
     d = {}
-    with sd.storage_lock:
-        for (k,v) in sd.file_index.items():
-            d[repr(k)] = len(v.versions)
+    with closing(sd.local.conn.cursor()) as c:
+        c.execute('SELECT f.*, COUNT(fv.fid) FROM Files f INNER JOIN FileVersions fv ON f.fid = fv.fid')
+        for row in c:
+            print(row)
+            d[row[1]] = row[3]
     return d
 
 import threading
