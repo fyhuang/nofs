@@ -101,7 +101,7 @@ def store_file(sd, fspath, version_id=None):
 
         print("Reading file {}".format(fspath))
         with open(fspath, 'rb') as f:
-            blocklist = bl.blocklist(f, int(1*1024*1024))
+            blocklist = bl.blocklist(f)
 
             # Save blocks
             print("Saving blocks")

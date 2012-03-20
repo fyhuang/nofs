@@ -2,7 +2,7 @@ import collections
 
 # http://gsoc.cat-v.org/people/mjl/blog/2007/08/06/1_Rabin_fingerprints/
 
-def blocklist(stream, limit,
+def blocklist(fd,
         prime=269,
         window_size=31,
         block_size=16*1024,
