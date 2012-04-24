@@ -5,31 +5,23 @@
 #include <vector>
 
 #include "network.h"
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 
 static std::vector<uint8_t> g_Packet;
+static google::protobuf::io::ArrayInputStream g_VecBuf(NULL, 0);
 
 void start_packet() {
     g_Packet.clear();
 }
 
-void add_path(const char *path) {
-    size_t path_size = strlen(path);
-    add_uint32(path_size);
+void add_pbuf(::google::protobuf::Message *msg) {
+    std::string str;
+    msg->SerializeToString(&str);
+
+    size_t path_size = str.size();
     size_t curr_size = g_Packet.size();
     g_Packet.resize(curr_size + path_size);
-    memcpy(&g_Packet[curr_size], path, path_size);
-}
-
-void add_uint32(uint32_t val) {
-    size_t curr_size = g_Packet.size();
-    g_Packet.resize(curr_size + 4);
-    memcpy(&g_Packet[curr_size], &val, 4);
-}
-
-void add_uint64(uint64_t val) {
-    size_t curr_size = g_Packet.size();
-    g_Packet.resize(curr_size + 8);
-    memcpy(&g_Packet[curr_size], &val, 8);
+    memcpy(&g_Packet[curr_size], str.c_str(), path_size);
 }
 
 int send_packet(int sock, Header *h) {
@@ -40,7 +32,14 @@ int send_packet(int sock, Header *h) {
     return err;
 }
 
-uint8_t *recv_packet(int sock, Header *h) {
+typedef google::protobuf::io::ArrayInputStream AIS;
+shared_ptr<pkt_stream> recv_packet(int sock, Header *h) {
+    uint8_t *packet = recv_packet_raw(sock, h);
+    shared_ptr<pkt_stream> ais(new AIS(&g_Packet[0], g_Packet.size()));
+    return ais;
+}
+
+uint8_t *recv_packet_raw(int sock, Header *h) {
     int err = recv(sock, h, sizeof(Header), MSG_WAITALL);
     if (err < 0) return NULL;
     if (g_Packet.size() < h->payload_len) {

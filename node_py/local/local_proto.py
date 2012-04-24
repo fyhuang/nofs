@@ -18,12 +18,17 @@ pkt_types = {
         'RESP_STAT': 128,
         'RESP_LISTDIR': 129,
         'RESP_READ': 130,
+
+
+        'REQ_ADM_ADDFILE': 64,
+        'RESP_ADMIN': 192,
         }
 for k,v in pkt_types.items():
     globals()[k] = v
 
 errors = {
         'ENOENT': 0,
+        'EBADPACKET': 1,
         'EUNKNOWN': -1,
         }
 
@@ -96,11 +101,20 @@ class RespListdir(object):
         return bio.getvalue()
 
 
+# Admin commands
+class ReqAdmAddfile(object):
+    def __init__(self, filepath):
+        self.filepath = filepath
+    def from_buffer(data):
+        bpath = data[4:]
+        return ReqAdmAddfile(bpath.decode())
+
 
 ################################
 # Handlers
 
 def handle(header, data, wfile):
+    handler = None
     if header.pkt_type == REQ_STAT:
         packet = ReqStat.from_buffer(data)
         handler = handle_stat
@@ -110,11 +124,15 @@ def handle(header, data, wfile):
     elif header.pkt_type == REQ_READ:
         packet = ReqRead.from_buffer(data)
         handler = handle_read
+    elif header.pkt_type == REQ_ADM_ADDFILE:
+        packet = ReqAdmAddfile.from_buffer(data)
+        handler = handle_adm_addfile
     else:
-        # TODO: send error
-        pass
+        print("Unrecognized packet type: {}".format(header.pkt_type))
+        error = EBADPACKET
 
-    error = handler(packet, wfile)
+    if handler is not None:
+        error = handler(packet, wfile)
     if error is not None:
         Header(RESP_ERROR, 4).to_stream(wfile)
         wfile.write(struct.pack("=l", error))
@@ -176,3 +194,9 @@ def handle_read(packet, wfile):
 
     Header(RESP_READ, len(bdata)).to_stream(wfile)
     wfile.write(bdata)
+
+def handle_adm_addfile(packet, wfile):
+    fname = packet.filepath
+    if not os.path.exists(fname):
+        return ENOENT
+    storage.store_file(sd, fname)

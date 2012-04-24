@@ -2,10 +2,9 @@ import threading
 
 class SharedData(object):
     def __init__(self, node):
-        self.running = True
-        self.state_lock = threading.Lock()
+        self.stop_evt = threading.Event()
 
         self.node = node
         self.peers = {}
 
-        self.local = threading.local()
+sd = SharedData()

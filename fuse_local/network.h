@@ -15,21 +15,21 @@ struct Header {
     uint32_t pkt_type;
     uint32_t payload_len;
 };
-
-struct RespStat {
-    char ftype;
-    uint8_t perms;
-    uint32_t inode;
-    uint64_t size;
-    uint64_t ctime_utc;
-};
 #pragma pack(pop)
+
+#include <boost/shared_ptr.hpp>
+using boost::shared_ptr;
+
+// Protocol buffers
+#include <google/protobuf/io/zero_copy_stream.h>
+#include "proto/nofs_local.pb.h"
+using namespace nofs_local;
 
 // Packet building
 extern void start_packet();
-extern void add_path(const char *path); // TODO: unicode
-extern void add_uint32(uint32_t val);
-extern void add_uint64(uint64_t val);
+extern void add_pbuf(::google::protobuf::Message *msg);
 extern int send_packet(int sock, Header *h);
 
-extern uint8_t *recv_packet(int sock, Header *h);
+typedef google::protobuf::io::ZeroCopyInputStream pkt_stream;
+extern shared_ptr<pkt_stream> recv_packet(int sock, Header *h);
+extern uint8_t *recv_packet_raw(int sock, Header *h);

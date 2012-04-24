@@ -61,10 +61,14 @@ static int nofs_stat(const char *path, struct stat *stbuf) {
     stbuf->st_uid = geteuid();
     stbuf->st_gid = getegid();
 
+    nofs_local::ReqStat req_stat;
+    req_stat.set_filename(path);
+
     // Send request
-    Header h = {REQ_STAT, 0};
     start_packet();
-    add_path(path);
+    add_pbuf(&req_stat);
+
+    Header h = {REQ_STAT, 0};
     int err = send_packet(g_Socket, &h);
     if (err < 0) {
         LOGERROR("send %m");
@@ -72,7 +76,7 @@ static int nofs_stat(const char *path, struct stat *stbuf) {
     }
 
     // Get response
-    uint8_t *pdata = recv_packet(g_Socket, &h);
+    pkt_stream *pdata = recv_packet(g_Socket, &h);
     if (pdata == NULL) {
         LOGERROR("recv %m");
         return -EIO;
@@ -85,22 +89,23 @@ static int nofs_stat(const char *path, struct stat *stbuf) {
     }
 
     DBPRINTF("stat %s\n", path);
-    RespStat *sr = (RespStat *)pdata;
+    nofs_local::RespStat sr;
+    sr.ParseFromZeroCopyStream(pdata);
 
-    if (sr->ftype == 'd') {
+    if (sr.ftype() == 'd') {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
-        stbuf->st_ino = sr->inode;
+        stbuf->st_ino = sr.inode();
         DBPRINTF("result dir\n");
         return 0;
     }
-    else if (sr->ftype == 'f') {
+    else if (sr.ftype() == 'f') {
         stbuf->st_mode = S_IFREG | 0644;
         stbuf->st_nlink = 1;
-        stbuf->st_size = sr->size;
-        stbuf->st_ino = sr->inode;
-        stbuf->st_ctime = sr->ctime_utc;
-        DBPRINTF("result file, size %lu b\n", sr->size);
+        stbuf->st_size = sr.size();
+        stbuf->st_ino = sr.inode();
+        stbuf->st_ctime = sr.ctime_utc();
+        DBPRINTF("result file, size %lu b\n", sr.size());
         return 0;
     }
 
@@ -130,16 +135,19 @@ static int nofs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 {
     DBPRINTF("nofs_readdir %s", path);
 
-    Header h = {REQ_LISTDIR, 0};
+    ReqListdir req_listdir;
+    req_listdir.set_dirpath(path);
     start_packet();
-    add_path(path);
+    add_pbuf(&req_listdir);
+
+    Header h = {REQ_LISTDIR, 0};
     int err = send_packet(g_Socket, &h);
     if (err < 0) {
         LOGERROR("send %m");
         return -EIO;
     }
 
-    uint8_t *pdata = recv_packet(g_Socket, &h);
+    pkt_stream *pdata = recv_packet(g_Socket, &h);
     if (pdata == NULL) {
         LOGERROR("recv %m");
         return -EIO;
@@ -153,27 +161,13 @@ static int nofs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
-    char path_buffer[256]; // TODO
+    RespListdir rl;
+    rl.ParseFromZeroCopyStream(pdata);
 
-    uint32_t num_entries = *((uint32_t *)pdata);
-    size_t off = 4;
-    for (uint32_t ix_entry = 0; ix_entry < num_entries; ix_entry++) {
-        if (off >= h.payload_len) {
-            printf("ERROR END OF PACKET\n");
-            return -EIO;
-        }
-        // Read path
-        uint32_t path_size = *((uint32_t*)(pdata+off));
-        off += 4;
-        memcpy(path_buffer, pdata+off, path_size);
-        path_buffer[path_size] = '\0';
-        filler(buf, path_buffer, NULL, 0);
-
-        off += path_size;
-
-        // Read stat
-        //RespStat *resp = (RespStat *)(pdata+ix);
-        off += sizeof(RespStat);
+    for (int i = 0; i < rl.entry_size(); i++) {
+        DBPRINTF("Reading entry %d\n", i);
+        const RespListdir::ListdirEntry &entry = rl.entry(i);
+        filler(buf, entry.filename().c_str(), NULL, 0);
     }
 
     return 0;
@@ -210,22 +204,25 @@ static int nofs_read(const char *path, char *buf, size_t size, off_t offset,
     int err = nofs_stat(path, &st);
     if (err != 0) return err;
 
-    Header h = {REQ_READ, 0};
-    start_packet();
-    add_uint64(offset);
     // TODO
     if (size > ULONG_MAX - sizeof(Header) - 1) {
         size = ULONG_MAX - sizeof(Header) - 1;
     }
-    add_uint32(size);
-    add_path(path);
+
+    ReqRead req_read;
+    req_read.set_filepath(path);
+    req_read.set_offset(offset);
+    req_read.set_length(size);
+    start_packet();
+    add_pbuf(&req_read);
+    Header h = {REQ_READ, 0};
     err = send_packet(g_Socket, &h);
     if (err < 0) {
         LOGERROR("send %m");
         return -EIO;
     }
 
-    uint8_t *pdata = recv_packet(g_Socket, &h);
+    uint8_t *pdata = recv_packet_raw(g_Socket, &h);
     if (pdata == NULL) {
         LOGERROR("recv %m");
         return -EIO;
