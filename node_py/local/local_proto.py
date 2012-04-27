@@ -8,6 +8,7 @@ import time
 
 import config
 import storage
+import database
 
 import proto.nofs_local_pb2 as nofs_local
 from proto.nofs_local_pb2 import *
@@ -41,32 +42,6 @@ class Header(object):
 
 ################################
 # Handlers
-
-def handle(header, data, wfile):
-    print(header)
-    handler = None
-    if header.pkt_type == REQ_STAT:
-        packet = ReqStat()
-        handler = handle_stat
-    elif header.pkt_type == REQ_LISTDIR:
-        packet = ReqListdir()
-        handler = handle_listdir
-    elif header.pkt_type == REQ_READ:
-        packet = ReqRead()
-        handler = handle_read
-    elif header.pkt_type == REQ_ADM_ADDFILE:
-        packet = AReqAddFile()
-        handler = handle_adm_addfile
-    else:
-        print("Unrecognized packet type: {}".format(header.pkt_type))
-        error = EBADPACKET
-
-    packet.ParseFromString(data)
-    if handler is not None:
-        error = handler(packet, wfile)
-    if error is not None:
-        Header(RESP_ERROR, 4).to_stream(wfile)
-        wfile.write(struct.pack("=l", error))
 
 def do_stat(fp):
     """try:
@@ -110,23 +85,21 @@ def handle_stat(packet, wfile):
 def handle_listdir(packet, wfile):
     dp = os.path.join(config.DATA_DIR, packet.dirpath[1:])
     print(dp)
-    entries = []
-    """
-    for (dirpath, dirnames, filenames) in os.walk(dp):
-        for f in filenames + dirnames:
-            fp = os.path.join(dirpath, f)
-            tp = fp[len(config.DATA_DIR):]
-            sr = do_stat(fp)
-            entries.append((tp, sr))
-    """
-    for f in os.listdir(dp):
-        fp = os.path.join(dp, f)
-        sr = do_stat(fp)
-        entries.append((f, sr))
 
-    bdata = RespListdir(entries).to_binary()
-    Header(RESP_LISTDIR, len(bdata)).to_stream(wfile)
-    wfile.write(bdata)
+    lr = RespListdir()
+    with database.connect() as c:
+        rows = c.execute('SELECT * FROM Files').fetchall()
+        for f in rows:
+            fp = storage.get_file(f[1])
+            sr = do_stat(fp)
+
+            le = lr.entry.add()
+            le.filename = f[1]
+            le.stat.CopyFrom(sr)
+
+    ser = lr.SerializeToString()
+    Header(RESP_LISTDIR, len(ser)).to_stream(wfile)
+    wfile.write(ser)
 
 def handle_read(packet, wfile):
     fp = os.path.join(config.DATA_DIR, packet.filepath[1:])
@@ -149,3 +122,29 @@ def handle_adm_addfile(packet, wfile):
     ser = rs.SerializeToString()
     Header(RESP_ADM_ADDFILE, len(ser)).to_stream(wfile)
     wfile.write(ser)
+
+
+pkt_type_to_type_handler = {
+        REQ_STAT: (ReqStat, handle_stat),
+        REQ_LISTDIR: (ReqListdir, handle_listdir),
+        REQ_READ: (ReqRead, handle_read),
+
+        REQ_ADM_ADDFILE: (AReqAddFile, handle_adm_addfile),
+        }
+
+def handle(header, data, wfile):
+    print(header)
+
+    if header.pkt_type not in pkt_type_to_type_handler:
+        print("Unrecognized packet type: {}".format(header.pkt_type))
+        error = EBADPACKET
+    else:
+        ptype, handler = pkt_type_to_type_handler[header.pkt_type]
+        packet = ptype()
+        packet.ParseFromString(data)
+        error = handler(packet, wfile)
+
+    if error is not None:
+        Header(RESP_ERROR, 4).to_stream(wfile)
+        wfile.write(struct.pack("=l", error))
+
