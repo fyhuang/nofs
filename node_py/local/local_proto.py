@@ -7,30 +7,16 @@ import stat
 import time
 
 import config
+import storage
 
-pkt_types = {
-        'REQ_STAT': 1,
-        'REQ_LISTDIR': 2,
-        'REQ_READ': 3,
+import proto.nofs_local_pb2 as nofs_local
+from proto.nofs_local_pb2 import *
 
-        'RESP_ERROR': 0,
-
-        'RESP_STAT': 128,
-        'RESP_LISTDIR': 129,
-        'RESP_READ': 130,
-
-
-        'REQ_ADM_ADDFILE': 64,
-        'RESP_ADM_ADDFILE': 192,
-        }
-for k,v in pkt_types.items():
-    globals()[k] = v
-
-errors = {
-        'ENOENT': 0,
-        'EBADPACKET': 1,
-        'EUNKNOWN': -1,
-        }
+def enum_from_value(enumtype, value):
+    for v in enumtype.values:
+        if v.number == value:
+            return v.name
+    return None
 
 class Header(object):
     bfmt = "=LL"
@@ -51,9 +37,7 @@ class Header(object):
         return Header(pt, pl)
     
     def __str__(self):
-        return "{0} ({1})".format(self.pkt_type, self.payload_len)
-
-from proto.nofs_local_pb2 import *
+        return "{0} ({1})".format(enum_from_value(nofs_local._MESSAGETYPE, self.pkt_type), self.payload_len)
 
 ################################
 # Handlers
@@ -71,7 +55,7 @@ def handle(header, data, wfile):
         packet = ReqRead()
         handler = handle_read
     elif header.pkt_type == REQ_ADM_ADDFILE:
-        packet = ReqAdmAddfile()
+        packet = AReqAddFile()
         handler = handle_adm_addfile
     else:
         print("Unrecognized packet type: {}".format(header.pkt_type))
@@ -85,7 +69,7 @@ def handle(header, data, wfile):
         wfile.write(struct.pack("=l", error))
 
 def do_stat(fp):
-    try:
+    """try:
         stat_res = os.stat(fp)
     except OSError:
         print("Couldn't stat", fp)
@@ -100,22 +84,25 @@ def do_stat(fp):
         ftype = stat.S_IFDIR
     else:
         print("Isn't file or dir", fp)
-        return None
+        return None"""
 
+    stat_res = fp.stat()
     rs = RespStat()
-    rs.ftype = ftype
+    rs.ftype = stat.S_IFREG
     rs.perms = 0
-    rs.inode = stat_res.st_ino
-    rs.size = stat_res.st_size
-    rs.ctime_utc = ctime_utc
+    rs.inode = fp.fid
+    rs.size = stat_res['size_bytes']
+    rs.ctime_utc = stat_res['dt_utc']
     return rs
 
 def handle_stat(packet, wfile):
-    fp = os.path.join(config.DATA_DIR, packet.filepath[1:])
-    sr = do_stat(fp)
-    if sr is None:
-        return errors["ENOENT"]
+    #fp = os.path.join(config.DATA_DIR, packet.filepath[1:])
+    #sr = do_stat(fp)
+    fp = storage.get_file(packet.filepath[1:])
+    if fp is None:
+        return ENOENT
 
+    sr = do_stat(fp)
     ser = sr.SerializeToString()
     Header(RESP_STAT, len(ser)).to_stream(wfile)
     wfile.write(ser)
@@ -151,7 +138,14 @@ def handle_read(packet, wfile):
     wfile.write(bdata)
 
 def handle_adm_addfile(packet, wfile):
-    fname = packet.filepath
+    fname = packet.ext_filepath
+    destdir = packet.destdir
     if not os.path.exists(fname):
         return ENOENT
-    storage.store_file(sd, fname)
+    fid = storage.store_file_ext(fname, destdir)
+
+    rs = ARespAddFile()
+    rs.fid = fid
+    ser = rs.SerializeToString()
+    Header(RESP_ADM_ADDFILE, len(ser)).to_stream(wfile)
+    wfile.write(ser)

@@ -1,3 +1,4 @@
+import os
 import sys
 import os.path
 
@@ -19,6 +20,14 @@ def main(argv=None):
     if not os.path.isdir(config.DATA_DIR):
         print("Data dir doesn't exist!")
         sys.exit()
+    lists_dir = os.path.join(config.DATA_DIR, 'lists')
+    if not os.path.isdir(lists_dir):
+        print("Creating lists dir")
+        os.mkdir(lists_dir)
+    blocks_dir = os.path.join(config.DATA_DIR, 'blocks')
+    if not os.path.isdir(blocks_dir):
+        print("Creating blocks dir")
+        os.mkdir(blocks_dir)
 
     # Initialize
     node = PeerNode("localhost", "localhost")

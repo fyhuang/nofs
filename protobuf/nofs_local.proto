@@ -16,7 +16,7 @@ enum MessageType {
     RESP_ADM_ADDFILE = 164;
 }
 
-enum ErrorCodes {
+enum ErrorCode {
     ENOENT = 0;
     EBADPACKET = 1;
     EUNKNOWN = -1;
@@ -60,9 +60,10 @@ message RespListdir {
 // Admin commands
 
 message AReqAddFile {
-    required string filepath = 1;
+    required string ext_filepath = 1;
+    required string destdir = 2;
 }
 
 message ARespAddFile {
-    required string fid = 1;
+    required uint32 fid = 1;
 }

@@ -2,6 +2,8 @@ import sqlite3
 import threading
 from contextlib import closing
 
+import config
+
 DB_SCHEMA = """
 CREATE TABLE UserSettings (
     name VARCHAR(255) PRIMARY KEY,
@@ -22,23 +24,24 @@ CREATE TABLE Directories (
 CREATE TABLE Files (
     fid INTEGER PRIMARY KEY,
     filename NVARCHAR(255),
-    owner VARCHAR(255),
-    dirid INTEGER,
+    owner VARCHAR(255)
+    -- dirid INTEGER,
 
-    FOREIGN KEY(dirid) REFERENCES Directories(dirid)
+    -- FOREIGN KEY(dirid) REFERENCES Directories(dirid)
     );
 
 CREATE TABLE FileVersions (
     vid INTEGER,
     fid INTEGER,
     dt_utc INTEGER,
+    size_bytes INTEGER,
     -- TODO: metadata
     blocklist VARCHAR(255),
     FOREIGN KEY(fid) REFERENCES Files(fid)
     );
 
 CREATE TABLE Blocks (
-    hash CHAR(32),
+    hash CHAR(128),
     length INTEGER,
     owner VARCHAR(255)
     );
@@ -47,7 +50,9 @@ CREATE TABLE Blocks (
 _local = threading.local()
 
 def connect():
-    if 'dbconn' not in _local:
+    try:
+        return _local.dbconn
+    except AttributeError:
         _local.dbconn = sqlite3.connect(config.DB_FILE)
         c = _local.dbconn.cursor()
 
