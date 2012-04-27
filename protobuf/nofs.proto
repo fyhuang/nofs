@@ -1,0 +1,28 @@
+package nofs;
+
+message BlockInfo {
+    required string hash = 1;
+    required uint32 size = 2;
+}
+
+message GetBlocks {
+    repeated BlockInfo block = 1;
+}
+
+message BlocksData {
+    repeated BlockInfo block = 1;
+    // block datas follow in order
+}
+
+
+message VersionInfo {
+    required string hash = 1;
+    required uint32 size = 2;
+}
+
+message FileInfo {
+    required string filename = 1;
+    repeated VersionInfo version = 2;
+    
+    // blocklist for latest version follows
+}

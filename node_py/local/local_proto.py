@@ -21,7 +21,7 @@ pkt_types = {
 
 
         'REQ_ADM_ADDFILE': 64,
-        'RESP_ADMIN': 192,
+        'RESP_ADM_ADDFILE': 192,
         }
 for k,v in pkt_types.items():
     globals()[k] = v
@@ -44,93 +44,40 @@ class Header(object):
         bdata = struct.pack(Header.bfmt, self.pkt_type, self.payload_len)
         s.write(bdata)
 
+    @staticmethod
     def from_stream(s):
         bdata = s.read(Header.bsize)
         (pt, pl) = struct.unpack(Header.bfmt, bdata)
         return Header(pt, pl)
+    
+    def __str__(self):
+        return "{0} ({1})".format(self.pkt_type, self.payload_len)
 
-class ReqStat(object):
-    def __init__(self, filepath):
-        self.filepath = filepath
-    def from_buffer(data):
-        #(pl,) = struct.unpack("=L", data[:4])
-        bpath = data[4:]
-        return ReqStat(bpath.decode())
-
-class ReqListdir(object):
-    def __init__(self, dirpath):
-        self.dirpath = dirpath
-    def from_buffer(data):
-        #(pl,) = struct.unpack("=L", socket.recv(4, socket.MSG_WAITALL))
-        bpath = data[4:]
-        return ReqListdir(bpath.decode())
-
-class ReqRead(object):
-    def __init__(self, filepath, offset, length):
-        self.filepath = filepath
-        self.offset = offset
-        self.length = length
-    def from_buffer(data):
-        (ro, rl, pl) = struct.unpack_from("=QLL", data)
-        bpath = data[16:]
-        return ReqRead(bpath.decode(), ro, rl)
-
-class RespStat(object):
-    bfmt = "=cBxxLQQ"
-    bsize = struct.calcsize(bfmt)
-    def __init__(self, ftype, perms, inode, size, ctime_utc):
-        self.ftype = ftype
-        self.perms = perms
-        self.inode = inode
-        self.size = size
-        self.ctime_utc = ctime_utc
-    def to_binary(self):
-        return struct.pack(RespStat.bfmt, self.ftype, self.perms, self.inode, self.size, self.ctime_utc)
-
-class RespListdir(object):
-    def __init__(self, entries):
-        self.entries = entries
-    def to_binary(self):
-        bio = io.BytesIO()
-        bio.write(struct.pack("=L", len(self.entries)))
-        for e in self.entries:
-            fp_bin = e[0].encode()
-            bio.write(struct.pack("=L", len(fp_bin)))
-            bio.write(fp_bin)
-            bio.write(e[1].to_binary())
-        return bio.getvalue()
-
-
-# Admin commands
-class ReqAdmAddfile(object):
-    def __init__(self, filepath):
-        self.filepath = filepath
-    def from_buffer(data):
-        bpath = data[4:]
-        return ReqAdmAddfile(bpath.decode())
-
+from proto.nofs_local_pb2 import *
 
 ################################
 # Handlers
 
 def handle(header, data, wfile):
+    print(header)
     handler = None
     if header.pkt_type == REQ_STAT:
-        packet = ReqStat.from_buffer(data)
+        packet = ReqStat()
         handler = handle_stat
     elif header.pkt_type == REQ_LISTDIR:
-        packet = ReqListdir.from_buffer(data)
+        packet = ReqListdir()
         handler = handle_listdir
     elif header.pkt_type == REQ_READ:
-        packet = ReqRead.from_buffer(data)
+        packet = ReqRead()
         handler = handle_read
     elif header.pkt_type == REQ_ADM_ADDFILE:
-        packet = ReqAdmAddfile.from_buffer(data)
+        packet = ReqAdmAddfile()
         handler = handle_adm_addfile
     else:
         print("Unrecognized packet type: {}".format(header.pkt_type))
         error = EBADPACKET
 
+    packet.ParseFromString(data)
     if handler is not None:
         error = handler(packet, wfile)
     if error is not None:
@@ -148,13 +95,20 @@ def do_stat(fp):
     ctime_utc = int(time.mktime(time.gmtime(ctime_loc)))
 
     if stat.S_ISREG(stat_res.st_mode):
-        ftype = b'f'
+        ftype = stat.S_IFREG
     elif stat.S_ISDIR(stat_res.st_mode):
-        ftype = b'd'
+        ftype = stat.S_IFDIR
     else:
         print("Isn't file or dir", fp)
         return None
-    return RespStat(ftype, 0, stat_res.st_ino, stat_res.st_size, ctime_utc)
+
+    rs = RespStat()
+    rs.ftype = ftype
+    rs.perms = 0
+    rs.inode = stat_res.st_ino
+    rs.size = stat_res.st_size
+    rs.ctime_utc = ctime_utc
+    return rs
 
 def handle_stat(packet, wfile):
     fp = os.path.join(config.DATA_DIR, packet.filepath[1:])
@@ -162,8 +116,9 @@ def handle_stat(packet, wfile):
     if sr is None:
         return errors["ENOENT"]
 
-    Header(RESP_STAT, RespStat.bsize).to_stream(wfile)
-    wfile.write(sr.to_binary())
+    ser = sr.SerializeToString()
+    Header(RESP_STAT, len(ser)).to_stream(wfile)
+    wfile.write(ser)
 
 def handle_listdir(packet, wfile):
     dp = os.path.join(config.DATA_DIR, packet.dirpath[1:])

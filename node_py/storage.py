@@ -18,7 +18,7 @@ import struct
 from contextlib import closing
 
 import config
-import shared
+from shared import sd
 import database as db
 try:
     import cblockify as bl
@@ -50,11 +50,11 @@ def store_block(c, bdata):
     with open(bfpath, 'wb') as f:
         f.write(bdata)
     c.execute('INSERT INTO Blocks VALUES (?,?,?)',
-            (bhash.digest(), len(bdata), shared.sd.node.name))
+            (bhash.digest(), len(bdata), sd.node.name))
 
     return bhash.digest()
 
-def store_file_ext(sd, fspath, version_id=None):
+def store_file_ext(fspath, destpath=None, version_id=None):
     if version_id is None:
         version_id = uuid.uuid4().int % 2**32
 
@@ -89,7 +89,7 @@ def store_file_ext(sd, fspath, version_id=None):
                     print("ERROR: block size wrong")
                     return None
 
-                bhash = store_block(sd, c, bdata)
+                bhash = store_block(c, bdata)
                 blf.write(struct.pack("=L", len(bdata)))
                 blf.write(bhash)
 

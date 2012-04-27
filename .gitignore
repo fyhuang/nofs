@@ -5,3 +5,8 @@ __pycache__/*
 *.pyc
 
 *.o
+
+# protobuf
+*_pb2.py
+*.pb.cc
+*.pb.h

@@ -7,4 +7,4 @@ class SharedData(object):
         self.node = node
         self.peers = {}
 
-sd = SharedData()
+sd = None

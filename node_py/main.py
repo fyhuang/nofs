@@ -2,15 +2,15 @@ import sys
 import os.path
 
 import config
-from unix_server import *
-from http_server import *
-from tcp_server import *
-from shared import SharedData
+from local.unix_server import *
+#from http_server import *
+#from tcp_server import *
+import shared
 from peer_node import PeerNode
 
 def main(argv=None):
-    if sys.version_info[0] < 3:
-        print("This program requires Python 3")
+    if sys.version_info[0] == 2 and sys.version_info[1] < 7:
+        print("This program requires Python >2.7")
         sys.exit()
     if argv is None:
         argv = sys.argv
@@ -22,11 +22,11 @@ def main(argv=None):
 
     # Initialize
     node = PeerNode("localhost", "localhost")
-    sd = SharedData(node)
+    shared.sd = shared.SharedData(node)
 
     # Start servers
-    #serve_unix_thread(sd)
-    serve_http_thread("localhost", 16637, sd)
+    serve_unix_thread()
+    #serve_http_thread("localhost", 16637, sd)
     #serve_tcp("localhost", 6637, sd)
     while True:
         import time

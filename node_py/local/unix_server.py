@@ -1,11 +1,11 @@
-from socketserver import *
+from SocketServer import *
 
 import os
 import os.path
 import threading
 
 import proto
-import local_proto
+from local import local_proto
 
 class NoFSUnixServer(UnixStreamServer):
     pass
@@ -14,6 +14,7 @@ class NoFSUnixHandler(StreamRequestHandler):
     def handle(self):
         client_proto = proto.determine(self.rfile)
         if client_proto not in ['local']:
+            print("Invalid protocol")
             return
 
         while True:
@@ -23,7 +24,7 @@ class NoFSUnixHandler(StreamRequestHandler):
 
             local_proto.handle(header, pkt_data, self.wfile)
 
-def serve_unix_thread(sd):
+def serve_unix_thread():
     SOCKET_FILE = "/tmp/nofs.socket"
     if os.path.exists(SOCKET_FILE):
         # TODO: check if server is already running
