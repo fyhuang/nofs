@@ -1,16 +1,4 @@
 #pragma pack(push, 4)
-enum {
-    REQ_STAT = 1,
-    REQ_LISTDIR,
-    REQ_READ,
-
-    RESP_ERROR = 0,
-
-    RESP_STAT = 128,
-    RESP_LISTDIR,
-    RESP_READ
-};
-
 struct Header {
     uint32_t pkt_type;
     uint32_t payload_len;

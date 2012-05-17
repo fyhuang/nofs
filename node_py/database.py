@@ -13,7 +13,8 @@ CREATE TABLE UserSettings (
 CREATE TABLE PeerNodes (
     name VARCHAR(255) PRIMARY KEY,
     last_hostname VARCHAR(255),
-    last_ip VARCHAR(255)
+    last_ip VARCHAR(255),
+    last_seen DATETIME,
     );
 
 CREATE TABLE Directories (

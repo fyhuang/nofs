@@ -19,6 +19,15 @@ def enum_from_value(enumtype, value):
             return v.name
     return None
 
+def read_exact(stream, nbytes):
+    result = b""
+    while len(result) < nbytes:
+        read = stream.read(nbytes - len(result))
+        if len(read) == 0:
+            return b""
+        result += read
+    return result
+
 class Header(object):
     bfmt = "=LL"
     bsize = struct.calcsize(bfmt)
@@ -33,7 +42,9 @@ class Header(object):
 
     @staticmethod
     def from_stream(s):
-        bdata = s.read(Header.bsize)
+        bdata = read_exact(s, Header.bsize)
+        if len(bdata) < Header.bsize:
+            return None
         (pt, pl) = struct.unpack(Header.bfmt, bdata)
         return Header(pt, pl)
     
@@ -75,7 +86,7 @@ def handle_stat(packet, wfile):
     #sr = do_stat(fp)
     fp = storage.get_file(packet.filepath[1:])
     if fp is None:
-        return ENOENT
+        return ERR_NOENT
 
     sr = do_stat(fp)
     ser = sr.SerializeToString()
@@ -102,10 +113,11 @@ def handle_listdir(packet, wfile):
     wfile.write(ser)
 
 def handle_read(packet, wfile):
-    fp = os.path.join(config.DATA_DIR, packet.filepath[1:])
-    with open(fp, 'rb') as f:
-        f.seek(packet.offset)
-        bdata = f.read(packet.length)
+    fp = storage.get_file(packet.filepath[1:])
+    if fp is None:
+        return ERR_NOENT
+
+    bdata = fp.read(packet.offset, packet.length)
 
     Header(RESP_READ, len(bdata)).to_stream(wfile)
     wfile.write(bdata)
@@ -114,7 +126,7 @@ def handle_adm_addfile(packet, wfile):
     fname = packet.ext_filepath
     destdir = packet.destdir
     if not os.path.exists(fname):
-        return ENOENT
+        return ERR_NOENT
     fid = storage.store_file_ext(fname, destdir)
 
     rs = ARespAddFile()
@@ -137,7 +149,7 @@ def handle(header, data, wfile):
 
     if header.pkt_type not in pkt_type_to_type_handler:
         print("Unrecognized packet type: {}".format(header.pkt_type))
-        error = EBADPACKET
+        error = ERR_BADPACKET
     else:
         ptype, handler = pkt_type_to_type_handler[header.pkt_type]
         packet = ptype()

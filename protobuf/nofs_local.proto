@@ -17,9 +17,9 @@ enum MessageType {
 }
 
 enum ErrorCode {
-    ENOENT = 0;
-    EBADPACKET = 1;
-    EUNKNOWN = -1;
+    ERR_NOENT = 0;
+    ERR_BADPACKET = 1;
+    ERR_UNKNOWN = -1;
 }
 
 

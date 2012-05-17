@@ -52,6 +52,7 @@ void _syslog_error(const char *what, const char *func, int line) {
     strcpy(buffer, what);
     strcat(buffer, " (in %s:%d)");
     syslog(LOG_ERR, buffer, func, line);
+    DBPRINTF("%s\n", what);
 }
 
 
@@ -62,7 +63,7 @@ static int nofs_stat(const char *path, struct stat *stbuf) {
     stbuf->st_gid = getegid();
 
     nofs_local::ReqStat req_stat;
-    req_stat.set_filename(path);
+    req_stat.set_filepath(path);
 
     // Send request
     start_packet();
@@ -76,8 +77,8 @@ static int nofs_stat(const char *path, struct stat *stbuf) {
     }
 
     // Get response
-    pkt_stream *pdata = recv_packet(g_Socket, &h);
-    if (pdata == NULL) {
+    shared_ptr<pkt_stream> pdata = recv_packet(g_Socket, &h);
+    if (!pdata) {
         LOGERROR("recv %m");
         return -EIO;
     }
@@ -90,22 +91,26 @@ static int nofs_stat(const char *path, struct stat *stbuf) {
 
     DBPRINTF("stat %s\n", path);
     nofs_local::RespStat sr;
-    sr.ParseFromZeroCopyStream(pdata);
+    sr.ParseFromZeroCopyStream(pdata.get());
 
-    if (sr.ftype() == 'd') {
+    if (sr.ftype() & S_IFDIR) {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
         stbuf->st_ino = sr.inode();
         DBPRINTF("result dir\n");
         return 0;
     }
-    else if (sr.ftype() == 'f') {
+    else if (sr.ftype() & S_IFREG) {
         stbuf->st_mode = S_IFREG | 0644;
         stbuf->st_nlink = 1;
         stbuf->st_size = sr.size();
         stbuf->st_ino = sr.inode();
-        stbuf->st_ctime = sr.ctime_utc();
+
+        time_t ctime_utc = sr.ctime_utc();
+        struct tm *tm_loc = localtime(&ctime_utc);
+        stbuf->st_ctime = mktime(tm_loc);
         DBPRINTF("result file, size %lu b\n", sr.size());
+        //DBPRINTF("ctime_utc %d, ctime %d, %s", ctime_utc, stbuf->st_ctime, ctime(&ctime_utc));
         return 0;
     }
 
@@ -117,7 +122,7 @@ static int nofs_stat(const char *path, struct stat *stbuf) {
 // FUSE
 static int nofs_getattr(const char *path, struct stat *stbuf)
 {
-    DBPRINTF("nofs_getattr %s", path);
+    DBPRINTF("nofs_getattr %s\n", path);
 
     if (strcmp(path, "/") == 0) {
         stbuf->st_uid = geteuid();
@@ -133,7 +138,7 @@ static int nofs_getattr(const char *path, struct stat *stbuf)
 static int nofs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                         off_t offset, struct fuse_file_info *fi)
 {
-    DBPRINTF("nofs_readdir %s", path);
+    DBPRINTF("nofs_readdir %s\n", path);
 
     ReqListdir req_listdir;
     req_listdir.set_dirpath(path);
@@ -147,8 +152,8 @@ static int nofs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         return -EIO;
     }
 
-    pkt_stream *pdata = recv_packet(g_Socket, &h);
-    if (pdata == NULL) {
+    shared_ptr<pkt_stream> pdata = recv_packet(g_Socket, &h);
+    if (!pdata) {
         LOGERROR("recv %m");
         return -EIO;
     }
@@ -162,7 +167,7 @@ static int nofs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, "..", NULL, 0);
 
     RespListdir rl;
-    rl.ParseFromZeroCopyStream(pdata);
+    rl.ParseFromZeroCopyStream(pdata.get());
 
     for (int i = 0; i < rl.entry_size(); i++) {
         DBPRINTF("Reading entry %d\n", i);
@@ -246,7 +251,7 @@ int main(int argc, char *argv[])
     openlog("nofs", LOG_CONS, LOG_USER);
 
     if (argc < 3) {
-        LOGERROR("not enough arguments!");
+        printf("not enough arguments!\n");
         exit(1);
     }
 

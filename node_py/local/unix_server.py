@@ -7,7 +7,7 @@ import threading
 import proto
 from local import local_proto
 
-class NoFSUnixServer(UnixStreamServer):
+class NoFSUnixServer(ThreadingMixIn, UnixStreamServer):
     pass
 
 class NoFSUnixHandler(StreamRequestHandler):
@@ -19,6 +19,9 @@ class NoFSUnixHandler(StreamRequestHandler):
 
         while True:
             header = local_proto.Header.from_stream(self.rfile)
+            if header is None:
+                print("Client disconnected")
+                return
             print("Received: {}, {}".format(header.pkt_type, header.payload_len))
             pkt_data = self.rfile.read(header.payload_len)
 
