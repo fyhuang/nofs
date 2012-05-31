@@ -1,5 +1,20 @@
 package nofs;
 
+enum MessageType {
+    PEER_ANNOUNCE = 1;
+    BLOCK_INFO = 2;
+    GET_BLOCKS = 3;
+    BLOCKS_DATA = 4;
+    VERSION_INFO = 5;
+    FILE_INFO = 6;
+}
+
+message PeerAnnounce {
+    required string name = 1;
+    required string version = 2;
+    required uint32 proto_version = 3;
+}
+
 message BlockInfo {
     required string hash = 1;
     required uint32 size = 2;

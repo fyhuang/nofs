@@ -9,7 +9,23 @@ from local.unix_server import *
 import shared
 from peer_node import PeerNode
 
+from network.routednetwork import *
+
 def main(argv=None):
+    if sys.version_info[0] == 2 and sys.version_info[1] < 7:
+        print("This program requires Python >2.7")
+        sys.exit()
+    if argv is None:
+        argv = sys.argv
+
+    net1 = RoutedNetwork()
+    net2 = RoutedNetwork(23456)
+    net2.connectto(('localhost', 12345))
+    while True:
+        net1.process(1.0)
+        net2.process(1.0)
+
+def _main(argv=None):
     if sys.version_info[0] == 2 and sys.version_info[1] < 7:
         print("This program requires Python >2.7")
         sys.exit()
