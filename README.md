@@ -1,3 +1,7 @@
+**Note:** I have rewritten nofs as [autofs](https://github.com/fyhuang/autofs), which initially aims to get the remote access and semantic filesystem parts working. Future development will be focused on autofs and not this project.
+
+https://github.com/fyhuang/autofs
+
 NoFS, a networked filesystem
 ============================
 
